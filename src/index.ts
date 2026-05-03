@@ -42,19 +42,25 @@ app.use(globalLimiter);
 app.use(requestLogger);
 
 // ── Mount routers ───────────────────────────────────────────────────
-// Swagger/OpenAPI docs via Scalar
+// Dynamic import helper — prevents tsc from converting import() to require()
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>;
+
+let scalarHandler: any = null;
 app.use('/api/v1/docs', async (req, res, next) => {
   try {
-    const { apiReference } = await import('@scalar/express-api-reference');
-    const handler = apiReference({
-      spec: {
-        content: swaggerSpec,
-      },
-      theme: 'purple',
-      layout: 'modern',
-      hideDownloadButton: true,
-    });
-    handler(req as any, res as any, next);
+    if (!scalarHandler) {
+      const mod = await dynamicImport('@scalar/express-api-reference');
+      const apiReference = mod.apiReference || mod.default?.apiReference || mod.default;
+      scalarHandler = apiReference({
+        spec: {
+          content: swaggerSpec,
+        },
+        theme: 'purple',
+        layout: 'modern',
+        hideDownloadButton: true,
+      });
+    }
+    scalarHandler(req, res, next);
   } catch (err) {
     next(err);
   }
