@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Request, Response } from 'express';
 import * as linesService from '../services/lines.service';
 
@@ -10,7 +11,7 @@ export async function getLines(_req: Request, res: Response) {
       updated: new Date().toISOString(),
     });
   } catch (err: any) {
-    console.error('[lines] Error:', err?.message || err);
+    logger.error('[lines] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -25,7 +26,7 @@ export async function getLineDetail(req: Request, res: Response) {
     }
     res.json(detail);
   } catch (err: any) {
-    console.error('[lines] Error:', err?.message || err);
+    logger.error('[lines] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -40,7 +41,7 @@ export async function getLineStops(req: Request, res: Response) {
     }
     res.json(stops);
   } catch (err: any) {
-    console.error('[lines/stops] Error:', err?.message || err);
+    logger.error('[lines/stops] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -55,7 +56,7 @@ export async function getLineRoute(req: Request, res: Response) {
     }
     res.json(route);
   } catch (err: any) {
-    console.error('[lines] Error:', err?.message || err);
+    logger.error('[lines] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -76,7 +77,7 @@ export async function getLinesIntersect(req: Request, res: Response) {
 
     res.json(intersect);
   } catch (err: any) {
-    console.error('[lines] Error:', err?.message || err);
+    logger.error('[lines] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }

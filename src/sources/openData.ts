@@ -1,6 +1,8 @@
 import fetch from 'node-fetch';
 import { Stop } from '../types';
 import { OPEN_DATA_URL, CACHE_TTL } from '../config';
+import logger from '../utils/logger';
+import Fuse from 'fuse.js';
 
 // ─── In-memory cache ───────────────────────────────────────────────
 
@@ -41,14 +43,14 @@ async function fetchAllStops(): Promise<Stop[]> {
     try {
       const res = await fetch(OPEN_DATA_URL);
       if (!res.ok) {
-        console.error(`[openData] HTTP ${res.status} fetching stops`);
+        logger.error({ status: res.status }, '[openData] HTTP error fetching stops');
         return Array.from(cache.values());
       }
 
       const data = (await res.json()) as OpenDataResponse;
 
       if (!data.resources || !Array.isArray(data.resources)) {
-        console.error('[openData] Unexpected response shape');
+        logger.error('[openData] Unexpected response shape');
         return Array.from(cache.values());
       }
 
@@ -80,11 +82,10 @@ async function fetchAllStops(): Promise<Stop[]> {
       }
 
       lastFetch = now;
-      console.log(`[openData] Loaded ${cache.size} stops`);
+      logger.info({ count: cache.size }, '[openData] Stops loaded');
       return Array.from(cache.values());
     } catch (err) {
-      console.error('[openData] Fetch error:', err);
-      // Return whatever we had cached (may be empty)
+      logger.error({ err }, '[openData] Fetch error');
       return Array.from(cache.values());
     } finally {
       fetchPromise = null;
@@ -105,15 +106,59 @@ export async function getStopById(id: number): Promise<Stop | null> {
   return cache.get(id) ?? null;
 }
 
+// ─── Fuzzy search index ────────────────────────────────────────────
+// The Fuse instance is built lazily once, and invalidated when the cache refreshes.
+
+let fuseIndex: Fuse<Stop> | null = null;
+let fuseBuiltAt = 0;
+
+function getFuse(stops: Stop[]): Fuse<Stop> {
+  // Rebuild if cache was refreshed since the index was built
+  if (!fuseIndex || fuseBuiltAt < lastFetch) {
+    fuseIndex = new Fuse(stops, {
+      keys: [
+        { name: 'name',    weight: 0.7 },
+        { name: 'address', weight: 0.2 },
+        { name: 'stopId',  weight: 0.1 },
+      ],
+      threshold: 0.35,       // 0 = exact, 1 = match everything
+      ignoreLocation: true,  // search anywhere in the string, not just the start
+      includeScore: true,
+      minMatchCharLength: 2,
+    });
+    fuseBuiltAt = Date.now();
+  }
+  return fuseIndex;
+}
+
+/**
+ * Hybrid search: exact substring matches first, then fuzzy.
+ * If the query is a pure number, searches by stopId.
+ */
 export async function searchStops(query: string): Promise<Stop[]> {
   const stops = await fetchAllStops();
-  const q = query.toLowerCase();
-  return stops.filter(
-    (s) =>
-      s.name.toLowerCase().includes(q) ||
-      (s.address && s.address.toLowerCase().includes(q)) ||
-      String(s.stopId).includes(q)
+  const q = query.trim();
+
+  // Numeric query → stopId exact match
+  if (/^\d+$/.test(q)) {
+    const id = parseInt(q, 10);
+    const exact = cache.get(id);
+    return exact ? [exact] : stops.filter(s => String(s.stopId).startsWith(q));
+  }
+
+  const qLow = q.toLowerCase();
+
+  // Priority 1: exact substring (fast, no false positives)
+  const exact = stops.filter(
+    s => s.name.toLowerCase().includes(qLow) ||
+         (s.address && s.address.toLowerCase().includes(qLow))
   );
+
+  if (exact.length > 0) return exact;
+
+  // Priority 2: fuzzy match (tolerates typos)
+  const fuse = getFuse(stops);
+  return fuse.search(q).map(r => r.item);
 }
 
 export function getCacheAge(): number {

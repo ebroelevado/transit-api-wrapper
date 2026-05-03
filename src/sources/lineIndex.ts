@@ -13,6 +13,7 @@ import { LEGACY_API_BASE, DISCOVERY_STOP_ID, CACHE_TTL } from '../config';
 import { LineInfo } from '../types';
 import { toScheduleId, lineName, getTextColor } from '../utils/lineMapping';
 import { rgbToHex, getColor } from '../utils/helpers';
+import logger from '../utils/logger';
 
 // ── Static data ────────────────────────────────────────────────────
 import colorsRaw from '../../data/colors.json';
@@ -292,9 +293,9 @@ async function populateStopNameCacheAsync(): Promise<void> {
         stopNameCache.set(stop.stopId, stop.name);
       }
     }
-    console.log(`[lineIndex] Stop name cache updated with ${stops.length} openData stops`);
+    logger.info({ count: stops.length }, '[lineIndex] Stop name cache updated');
   } catch (err) {
-    console.warn('[lineIndex] Could not load openData stops for name cache:', err);
+    logger.warn({ err }, '[lineIndex] Could not load openData stops for name cache');
   }
 }
 
@@ -407,7 +408,7 @@ export async function buildLineIndex(): Promise<void> {
 
     // ── Fire-and-forget: update stop name cache from openData ─────
     populateStopNameCacheAsync().catch((err) => {
-      console.warn('[lineIndex] Background stop name cache update failed:', err);
+      logger.warn('[lineIndex] Background stop name cache update failed:', err);
     });
   })();
 

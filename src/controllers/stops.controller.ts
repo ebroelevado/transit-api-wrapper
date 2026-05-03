@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Request, Response } from 'express';
 import { NEARBY_RADIUS } from '../config';
 import * as stopsService from '../services/stops.service';
@@ -23,7 +24,7 @@ export async function getNearbyStops(req: Request, res: Response) {
 
     res.json({ results, total: results.length, center: { lat, lng }, radius, source: 'open_data' });
   } catch (err: any) {
-    console.error('[stops/nearby] Error:', err?.message || err);
+    logger.error('[stops/nearby] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -40,7 +41,7 @@ export async function listOrSearchStops(req: Request, res: Response) {
 
     res.json({ results: paged, total, query: q || null, source: 'open_data' });
   } catch (err: any) {
-    console.error('[stops] Error:', err?.message || err);
+    logger.error('[stops] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }
@@ -61,7 +62,7 @@ export async function getStopDetail(req: Request, res: Response) {
 
     res.json(details);
   } catch (err: any) {
-    console.error('[stops/:stop] Error:', err?.message || err);
+    logger.error('[stops/:stop] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router, Request, Response } from 'express';
 import { VERSION } from '../config';
 import * as openData from '../sources/openData';
@@ -117,7 +118,7 @@ router.get('/health', async (_req: Request, res: Response) => {
       version: VERSION,
     });
   } catch (err: any) {
-    console.error('[health] Error:', err?.message || err);
+    logger.error('[health] Error:', err?.message || err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
     }

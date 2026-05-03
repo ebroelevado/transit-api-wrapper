@@ -2,13 +2,16 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { PORT, VERSION } from './config';
 import * as lineIndex from './sources/lineIndex';
+import { globalLimiter, strictLimiter } from './middleware/rateLimiter';
+import { requestLogger } from './middleware/requestLogger';
+import logger from './utils/logger';
 
 // ── Global crash handlers ───────────────────────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[crash] Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ reason, promise: String(promise) }, '[crash] Unhandled Rejection');
 });
 process.on('uncaughtException', (err) => {
-  console.error('[crash] Uncaught Exception:', err.message, err.stack);
+  logger.fatal({ err }, '[crash] Uncaught Exception');
 });
 
 // ── Route imports ───────────────────────────────────────────────────
@@ -35,6 +38,8 @@ const app = express();
 // ── Middleware ──────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
+app.use(globalLimiter);
+app.use(requestLogger);
 
 // ── Mount routers ───────────────────────────────────────────────────
 // Swagger docs
@@ -74,7 +79,7 @@ app.use((_req: Request, res: Response) => {
 
 // ── Global error handler ────────────────────────────────────────────
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[error]', err.message, err.stack);
+  logger.error({ err }, '[error] Unhandled Express error');
   res.status(500).json({
     error: 'internal_error',
     message: err.message || 'Unexpected internal error',
@@ -86,21 +91,21 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ── Startup ─────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`[server] Listening on http://localhost:${PORT}`);
+    logger.info({ port: PORT }, `[server] Listening on http://localhost:${PORT}`);
   });
 }
 
 // Pre-warm caches in background (non-blocking)
 lineIndex.buildLineIndex()
-  .then(() => console.log(`[server] Line index ready: ${lineIndex.getLines().length} lines`))
-  .catch((err: Error) => console.warn('[server] Could not build line index:', err.message));
+  .then(() => logger.info({ lines: lineIndex.getLines().length }, '[server] Line index ready'))
+  .catch((err: Error) => logger.warn({ err }, '[server] Could not build line index'));
 
 import('./sources/openData').then((od) => {
   od.getStops().then((stops) => {
-    console.log(`[server] Open Data cache pre-warmed: ${stops.length} stops`);
+    logger.info({ stops: stops.length }, '[server] Open Data cache pre-warmed');
   });
 }).catch(() => {
-  console.warn('[server] Could not pre-warm Open Data cache');
+  logger.warn('[server] Could not pre-warm Open Data cache');
 });
 
 export default app;
