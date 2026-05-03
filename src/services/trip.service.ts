@@ -1,4 +1,5 @@
 import { getLinesForStop, getLine, getLinePositionMap, getCommonStops, getStopName } from '../sources/lineIndex';
+import { resolveStop } from '../utils/helpers';
 
 export interface TripOption {
   type: 'direct' | 'transfer';
@@ -15,11 +16,6 @@ export interface TripOption {
   transfer_stops?: number;
 }
 
-/**
- * Find all direct (single-line) routes between two stops.
- * Handles same-direction forward trips, circular line wrap-around,
- * and same-line different-direction trips (ride to terminus, line continues).
- */
 export function findDirectRoutes(fromId: number, toId: number): TripOption[] {
   const options: TripOption[] = [];
   const fromLines = getLinesForStop(fromId);
@@ -134,9 +130,6 @@ export function findDirectRoutes(fromId: number, toId: number): TripOption[] {
   return options;
 }
 
-/**
- * Find all transfer (two-line) routes between two stops.
- */
 export function findTransferRoutes(fromId: number, toId: number): TripOption[] {
   const options: TripOption[] = [];
   const fromLines = getLinesForStop(fromId);
@@ -199,4 +192,75 @@ export function findTransferRoutes(fromId: number, toId: number): TripOption[] {
   }
 
   return options;
+}
+
+export function buildTripOptions(fromId: number, toId: number): TripOption[] {
+  const directOptions = findDirectRoutes(fromId, toId);
+  const transferOptions = findTransferRoutes(fromId, toId);
+  let allOptions = [...directOptions, ...transferOptions];
+
+  const seen = new Set<string>();
+  allOptions = allOptions.filter(o => {
+    const key = `${o.type}|${o.line}|${o.total_stops}|${o.transfer_at?.stopId ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  allOptions.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'direct' ? -1 : 1;
+    if (a.total_stops !== b.total_stops) return a.total_stops - b.total_stops;
+    if (a.duration_min !== b.duration_min) return a.duration_min - b.duration_min;
+    return a.line.localeCompare(b.line);
+  });
+
+  return allOptions;
+}
+
+interface ConnectionEntry {
+  stopId: number;
+  name: string;
+  via_line: string;
+  direction: string;
+}
+
+export async function buildConnections(stopId: number) {
+  const lines = getLinesForStop(stopId);
+  const connections: Map<number, ConnectionEntry[]> = new Map();
+
+  for (const lineId of lines) {
+    const lineInfo = getLine(lineId);
+    if (!lineInfo) continue;
+
+    for (const dir of Object.keys(lineInfo.directions)) {
+      const stops = lineInfo.directions[dir].stops;
+      const idx = stops.indexOf(stopId);
+      if (idx === -1) continue;
+
+      for (let i = idx + 1; i < stops.length; i++) {
+        const targetId = stops[i];
+        if (!connections.has(targetId)) {
+          connections.set(targetId, []);
+        }
+        const resolved = await resolveStop(targetId);
+        connections.get(targetId)!.push({
+          stopId: targetId,
+          name: resolved?.name || 'Unknown',
+          via_line: lineId,
+          direction: lineInfo.directions[dir].destination,
+        });
+      }
+    }
+  }
+
+  const result: any[] = [];
+  for (const [sid, entries] of connections) {
+    result.push({
+      stopId: sid,
+      name: entries[0]?.name || 'Unknown',
+      via_lines: entries.map((e) => ({ line: e.via_line, direction: e.direction })),
+    });
+  }
+
+  return result;
 }
