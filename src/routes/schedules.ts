@@ -1,47 +1,17 @@
 import { Router, Request, Response } from 'express';
-import path from 'path';
 import { DATA_DIR } from '../config';
 import { toScheduleId, getDayType, dayTypeName } from '../utils/lineMapping';
 import { getLinesForStop } from '../sources/lineIndex';
+import { timeToMinutes, currentTimeStr, loadSchedules } from '../utils/helpers';
+import { SchedulesRaw } from '../types';
 
 const router = Router();
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-
-interface SchedulesRaw {
-  horarios_hardcoded: Record<string, Record<string, string[]>>;
-}
-
-let schedulesCache: SchedulesRaw | null = null;
-
-function loadSchedules(): SchedulesRaw {
-  if (schedulesCache) return schedulesCache;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  schedulesCache = require(path.join(DATA_DIR, 'schedules.json')) as SchedulesRaw;
-  return schedulesCache;
-}
 
 /** Build the lookup key: "{scheduleId}-{direction}" */
 function scheduleKey(lineId: string, direction: string): string | null {
   const sId = toScheduleId(lineId);
   if (!sId) return null;
   return `${sId}-${direction}`;
-}
-
-/**
- * Parse "HH:MM" into minutes since midnight for comparison.
- */
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-/**
- * Get current time in "HH:MM" format (server local time).
- */
-function currentTimeStr(): string {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
 /** Calculate approximate headway in minutes from sorted time array */

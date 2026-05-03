@@ -8,9 +8,9 @@ const router = Router();
 
 interface RawCard {
   id: string;
-  tipo: string; // name
+  tipo: string;
   descripcion: string;
-  modelo_gestion: string; // type
+  modelo_gestion: string;
   coste_viaje_2025?: number;
   precio_trimestre?: number;
   precio_mensual?: number;
@@ -22,7 +22,7 @@ interface RawCard {
 interface Fare {
   id: string;
   name: string;
-  type: string; // modelo_gestion
+  type: string;
   description: string;
   price_per_trip: number | null;
   color: string;
@@ -40,6 +40,7 @@ function loadCards(): RawCard[] {
 }
 
 function cardToFare(card: RawCard): Fare {
+  // Simplified fallback chain
   const price_per_trip =
     card.coste_viaje_2025 ??
     (card.precio_trimestre != null ? card.precio_trimestre / 3 : null) ??
@@ -63,20 +64,6 @@ function cardToFare(card: RawCard): Fare {
 
 // ─── GET /api/v1/fares ────────────────────────────────────────────────
 
-/**
- * @swagger
- * /api/v1/fares:
- *   get:
- *     tags: [Fares]
- *     summary: Listar las 7 tarjetas y abonos TUS
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/', (_req: Request, res: Response) => {
   const cards = loadCards();
   const fares = cards.map(cardToFare);
@@ -84,22 +71,7 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // ─── GET /api/v1/fares/compare ────────────────────────────────────────
-// Must be defined BEFORE /:id to avoid "compare" being treated as an id
 
-/**
- * @swagger
- * /api/v1/fares/compare:
- *   get:
- *     tags: [Fares]
- *     summary: Comparativa de todas las tarifas
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/compare', (_req: Request, res: Response) => {
   const cards = loadCards();
   const fares = cards.map(cardToFare);
@@ -107,33 +79,7 @@ router.get('/compare', (_req: Request, res: Response) => {
 });
 
 // ─── GET /api/v1/fares/calculator ─────────────────────────────────────
-// Also before /:id
 
-/**
- * @swagger
- * /api/v1/fares/calculator:
- *   get:
- *     tags: [Fares]
- *     summary: "Calculadora: opción más barata según uso mensual y edad"
- *     parameters:
- *       - in: query
- *         name: trips
- *         schema:
- *           type: integer
- *           default: 40
- *       - in: query
- *         name: age
- *         schema:
- *           type: integer
- *           default: 16
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/calculator', (req: Request, res: Response) => {
   const trips = parseInt(req.query.trips as string, 10) || 0;
   const age = parseInt(req.query.age as string, 10) || 0;
@@ -147,15 +93,17 @@ router.get('/calculator', (req: Request, res: Response) => {
     });
   }
 
-  const options: {
+  interface Option {
     id: string;
     name: string;
     monthly_cost: number;
     eligible: boolean;
     reason?: string;
-  }[] = [];
+  }
 
-  // Pay-as-you-go (estándar)
+  const options: Option[] = [];
+
+  // 1. Tarjeta estándar recargable (payAsYouGo)
   const estandarCost = trips * 0.4;
   options.push({
     id: 'estandar',
@@ -164,24 +112,63 @@ router.get('/calculator', (req: Request, res: Response) => {
     eligible: true,
   });
 
-  // Joven Trimestral (only if age <= 25)
+  // 2. Carné Trimestral Joven (age <= 25)
   const jovenMonthly = 25.5 / 3; // 8.50
-  if (age <= 25) {
-    options.push({
-      id: 'jovenTrimestral',
-      name: 'Carné Trimestral Joven',
-      monthly_cost: Math.round(jovenMonthly * 100) / 100,
-      eligible: true,
-    });
-  } else {
-    options.push({
-      id: 'jovenTrimestral',
-      name: 'Carné Trimestral Joven',
-      monthly_cost: Math.round(jovenMonthly * 100) / 100,
-      eligible: false,
-      reason: 'Edad máxima: 25 años',
-    });
-  }
+  options.push({
+    id: 'jovenTrimestral',
+    name: 'Carné Trimestral Joven',
+    monthly_cost: Math.round(jovenMonthly * 100) / 100,
+    eligible: age <= 25,
+    ...(age > 25 ? { reason: 'Edad máxima: 25 años' } : {}),
+  });
+
+  // 3. Tarjeta para personas con discapacidad
+  const discapacidadMonthly = 10.20;
+  options.push({
+    id: 'discapacidad',
+    name: 'Tarjeta para personas con discapacidad',
+    monthly_cost: Math.round(discapacidadMonthly * 100) / 100,
+    eligible: true,
+    reason: 'Requiere grado de discapacidad reconocido del 33% al 64%',
+  });
+
+  // 4. Tarjeta de Familia Numerosa (free)
+  options.push({
+    id: 'familiaNumerosa',
+    name: 'Tarjeta de Familia Numerosa',
+    monthly_cost: 0,
+    eligible: true,
+    reason: 'Requiere título oficial de familia numerosa',
+  });
+
+  // 5. Tarjeta Mayor (age >= 65, free)
+  options.push({
+    id: 'mayor',
+    name: 'Tarjeta Mayor',
+    monthly_cost: 0,
+    eligible: age >= 65,
+    ...(age < 65 ? { reason: 'Para pensionistas mayores de 65 años' } : {}),
+  });
+
+  // 6. Tarjeta PequeTUS (age 4-6, free)
+  const pequeEligible = age >= 4 && age <= 6;
+  options.push({
+    id: 'pequeTUS',
+    name: 'Tarjeta PequeTUS',
+    monthly_cost: 0,
+    eligible: pequeEligible,
+    ...(pequeEligible ? {} : { reason: 'Para niños de 4 a 6 años' }),
+  });
+
+  // 7. Tarjeta Juvenil (age 8-14, free)
+  const juvenilEligible = age >= 8 && age <= 14;
+  options.push({
+    id: 'juvenil',
+    name: 'Tarjeta Juvenil',
+    monthly_cost: 0,
+    eligible: juvenilEligible,
+    ...(juvenilEligible ? {} : { reason: 'Para jóvenes de 8 a 14 años' }),
+  });
 
   // Sort by monthly cost ascending
   options.sort((a, b) => a.monthly_cost - b.monthly_cost);
@@ -199,32 +186,6 @@ router.get('/calculator', (req: Request, res: Response) => {
 
 // ─── GET /api/v1/fares/:id ────────────────────────────────────────────
 
-/**
- * @swagger
- * /api/v1/fares/{id}:
- *   get:
- *     tags: [Fares]
- *     summary: Detalle de una tarjeta/abono
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       404:
- *         description: fare_not_found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/:id', (req: Request, res: Response) => {
   const cards = loadCards();
   const card = cards.find((c) => c.id === req.params.id);

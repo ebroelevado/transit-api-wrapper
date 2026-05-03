@@ -6,12 +6,13 @@
 //   3. Enrich with colors (colors.json) and schedule presence (schedules.json)
 //   4. Cache in memory
 //   5. Build precomputed indices (StopToLinesMap, StopPositionIndex, LineIntersectionIndex,
-//      StopNameCache, circular detection)
+//      StopNameCache, circular detection, LinePositionMaps)
 
 import fetch from 'node-fetch';
 import { LEGACY_API_BASE, DISCOVERY_STOP_ID, CACHE_TTL } from '../config';
 import { LineInfo } from '../types';
 import { toScheduleId, lineName, getTextColor } from '../utils/lineMapping';
+import { rgbToHex, getColor } from '../utils/helpers';
 
 // ── Static data ────────────────────────────────────────────────────
 import colorsRaw from '../../data/colors.json';
@@ -26,24 +27,6 @@ interface RouteStopEntry {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
-
-/** Convert RGB array to hex string: [255,0,0] → '#FF0000' */
-export function rgbToHex(rgb: number[]): string {
-  const [r, g, b] = rgb;
-  return (
-    '#' +
-    [r, g, b]
-      .map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, '0'))
-      .join('')
-      .toUpperCase()
-  );
-}
-
-function getColor(lineId: string): string {
-  const colors = colorsRaw as Record<string, number[]>;
-  const rgb = colors[lineId] || colors['default'];
-  return rgbToHex(rgb);
-}
 
 function hasSchedule(lineId: string): boolean {
   const scheduleId = toScheduleId(lineId);
@@ -99,6 +82,7 @@ async function fetchRoute(stopId: number, line: string): Promise<RouteStopEntry[
 
 let linesCache: Map<string, LineInfo> | null = null;
 let lastBuilt: number = 0;
+let buildPromise: Promise<void> | null = null;
 
 // ── Precomputed indices ────────────────────────────────────────────
 
@@ -110,6 +94,9 @@ let stopPositionIndex: Map<number, Map<string, Array<{ dir: string; position: nu
 
 /** "lineA|lineB" (alphabetically sorted) → array of common stopIds */
 let lineIntersectionIndex: Map<string, number[]> = new Map();
+
+/** lineId → Map<direction → Map<stopId → position>> for O(1) getLinePositionMap */
+let linePositionMaps: Map<string, Map<string, Map<number, number>>> = new Map();
 
 /** stopId → name (populated from openData async + stops.min.json sync fallback) */
 export const stopNameCache: Map<number, string> = new Map();
@@ -223,6 +210,26 @@ function buildLineIntersectionIndex(catalog: Map<string, LineInfo>): Map<string,
 }
 
 /**
+ * Build LinePositionMaps: lineId → Map<direction, Map<stopId, position>>
+ * Precomputes the O(1) lookup maps for getLinePositionMap().
+ */
+function buildLinePositionMaps(catalog: Map<string, LineInfo>): Map<string, Map<string, Map<number, number>>> {
+  const maps = new Map<string, Map<string, Map<number, number>>>();
+
+  for (const [lineId, line] of catalog) {
+    const dirMaps = new Map<string, Map<number, number>>();
+    for (const [dir, direction] of Object.entries(line.directions)) {
+      const posMap = new Map<number, number>();
+      direction.stops.forEach((sid, i) => posMap.set(sid, i));
+      dirMaps.set(dir, posMap);
+    }
+    maps.set(lineId, dirMaps);
+  }
+
+  return maps;
+}
+
+/**
  * Detect circular lines.
  * A line is circular if:
  *   - In a single direction, the first stop equals the last stop, OR
@@ -296,106 +303,119 @@ async function populateStopNameCacheAsync(): Promise<void> {
 /**
  * Build (or refresh) the complete line catalog.
  * Safe to call multiple times — no-op if cache is still fresh.
+ * Uses buildPromise guard to prevent concurrent builds (race condition).
  */
 export async function buildLineIndex(): Promise<void> {
   if (isCacheValid()) return;
 
-  console.log('[lineIndex] Building line catalog...');
-  const allLineLabels = await fetchAllLineLabels(DISCOVERY_STOP_ID);
-  console.log(`[lineIndex] Discovered ${allLineLabels.length} active line(s): ${allLineLabels.join(', ')}`);
+  // If a build is already in progress, wait for it instead of starting a new one
+  if (buildPromise) return buildPromise;
 
-  const newCache = new Map<string, LineInfo>();
+  buildPromise = (async () => {
+    console.log('[lineIndex] Building line catalog...');
+    const allLineLabels = await fetchAllLineLabels(DISCOVERY_STOP_ID);
+    console.log(`[lineIndex] Discovered ${allLineLabels.length} active line(s): ${allLineLabels.join(', ')}`);
 
-  for (const lineId of allLineLabels) {
-    try {
-      // ── Direction 1: route from the discovery stop ──────────────
-      const dir1Stops = await fetchRoute(DISCOVERY_STOP_ID, lineId);
+    const newCache = new Map<string, LineInfo>();
 
-      // ── Direction 2: route from the last stop of direction 1 ───
-      let dir2Stops: RouteStopEntry[] = [];
-      if (dir1Stops.length > 0) {
-        const lastStopId = dir1Stops[dir1Stops.length - 1].stopId;
-        if (lastStopId !== DISCOVERY_STOP_ID) {
-          dir2Stops = await fetchRoute(lastStopId, lineId);
+    for (const lineId of allLineLabels) {
+      try {
+        // ── Direction 1: route from the discovery stop ──────────────
+        const dir1Stops = await fetchRoute(DISCOVERY_STOP_ID, lineId);
+
+        // ── Direction 2: route from the last stop of direction 1 ───
+        let dir2Stops: RouteStopEntry[] = [];
+        if (dir1Stops.length > 0) {
+          const lastStopId = dir1Stops[dir1Stops.length - 1].stopId;
+          if (lastStopId !== DISCOVERY_STOP_ID) {
+            dir2Stops = await fetchRoute(lastStopId, lineId);
+          }
         }
-      }
 
-      // ── Build destinations and directions maps ─────────────────
-      const destinations: { [dir: string]: string } = {};
-      const directions: { [dir: string]: { destination: string; stops: number[] } } = {};
+        // ── Build destinations and directions maps ─────────────────
+        const destinations: { [dir: string]: string } = {};
+        const directions: { [dir: string]: { destination: string; stops: number[] } } = {};
 
-      if (dir1Stops.length > 0) {
-        const dest = dir1Stops[dir1Stops.length - 1].name;
-        destinations['1'] = dest;
-        directions['1'] = {
-          destination: dest,
-          stops: dir1Stops.map((s) => s.stopId),
+        if (dir1Stops.length > 0) {
+          const dest = dir1Stops[dir1Stops.length - 1].name;
+          destinations['1'] = dest;
+          directions['1'] = {
+            destination: dest,
+            stops: dir1Stops.map((s) => s.stopId),
+          };
+        }
+
+        if (dir2Stops.length > 0) {
+          const dest = dir2Stops[dir2Stops.length - 1].name;
+          destinations['2'] = dest;
+          directions['2'] = {
+            destination: dest,
+            stops: dir2Stops.map((s) => s.stopId),
+          };
+        }
+
+        const stopsDir1 = directions['1']?.stops.length || 0;
+        const stopsDir2 = directions['2']?.stops.length || 0;
+        const scheduleId = toScheduleId(lineId);
+
+        const lineInfo: LineInfo = {
+          id: lineId,
+          name: lineName(lineId),
+          color: getColor(lineId),
+          text_color: getTextColor(lineId),
+          schedule_id: scheduleId || null,
+          destinations,
+          directions,
+          stats: {
+            stops_total: stopsDir1 + stopsDir2,
+            stops_direction_1: stopsDir1,
+            stops_direction_2: stopsDir2,
+          },
+          has_schedule: hasSchedule(lineId),
+          active: true,
+          is_circular: false, // will be set after catalog is built
         };
+
+        newCache.set(lineId, lineInfo);
+        console.log(`[lineIndex]   ${lineId}: dir1=${stopsDir1} stops → "${destinations['1'] || '?'}", dir2=${stopsDir2} stops → "${destinations['2'] || '?'}"`);
+      } catch (err) {
+        console.error(`[lineIndex] Failed to build route for line "${lineId}":`, err);
       }
-
-      if (dir2Stops.length > 0) {
-        const dest = dir2Stops[dir2Stops.length - 1].name;
-        destinations['2'] = dest;
-        directions['2'] = {
-          destination: dest,
-          stops: dir2Stops.map((s) => s.stopId),
-        };
-      }
-
-      const stopsDir1 = directions['1']?.stops.length || 0;
-      const stopsDir2 = directions['2']?.stops.length || 0;
-      const scheduleId = toScheduleId(lineId);
-
-      const lineInfo: LineInfo = {
-        id: lineId,
-        name: lineName(lineId),
-        color: getColor(lineId),
-        text_color: getTextColor(lineId),
-        schedule_id: scheduleId || null,
-        destinations,
-        directions,
-        stats: {
-          stops_total: stopsDir1 + stopsDir2,
-          stops_direction_1: stopsDir1,
-          stops_direction_2: stopsDir2,
-        },
-        has_schedule: hasSchedule(lineId),
-        active: true,
-        is_circular: false, // will be set after catalog is built
-      };
-
-      newCache.set(lineId, lineInfo);
-      console.log(`[lineIndex]   ${lineId}: dir1=${stopsDir1} stops → "${destinations['1'] || '?'}", dir2=${stopsDir2} stops → "${destinations['2'] || '?'}"`);
-    } catch (err) {
-      console.error(`[lineIndex] Failed to build route for line "${lineId}":`, err);
     }
+
+    linesCache = newCache;
+
+    // ── Circular detection: update is_circular on each line ────────
+    for (const line of newCache.values()) {
+      line.is_circular = detectCircular(line);
+    }
+
+    // ── Build precomputed indices ──────────────────────────────────
+    stopToLinesMap = buildStopToLinesMap(newCache);
+    stopPositionIndex = buildStopPositionIndex(newCache);
+    lineIntersectionIndex = buildLineIntersectionIndex(newCache);
+    linePositionMaps = buildLinePositionMaps(newCache);
+
+    // ── Populate stop name cache (sync fallback now, async later) ─
+    if (stopNameCache.size === 0) {
+      populateStopNameCacheSync();
+    }
+
+    lastBuilt = Date.now();
+    console.log(`[lineIndex] Catalog ready: ${newCache.size} lines cached (TTL: ${CACHE_TTL.lines}ms)`);
+    console.log(`[lineIndex] Indices built: StopToLinesMap=${stopToLinesMap.size} stops, IntersectionIndex=${lineIntersectionIndex.size} pairs`);
+
+    // ── Fire-and-forget: update stop name cache from openData ─────
+    populateStopNameCacheAsync().catch((err) => {
+      console.warn('[lineIndex] Background stop name cache update failed:', err);
+    });
+  })();
+
+  try {
+    await buildPromise;
+  } finally {
+    buildPromise = null;
   }
-
-  linesCache = newCache;
-
-  // ── Circular detection: update is_circular on each line ────────
-  for (const line of newCache.values()) {
-    line.is_circular = detectCircular(line);
-  }
-
-  // ── Build precomputed indices ──────────────────────────────────
-  stopToLinesMap = buildStopToLinesMap(newCache);
-  stopPositionIndex = buildStopPositionIndex(newCache);
-  lineIntersectionIndex = buildLineIntersectionIndex(newCache);
-
-  // ── Populate stop name cache (sync fallback now, async later) ─
-  if (stopNameCache.size === 0) {
-    populateStopNameCacheSync();
-  }
-
-  lastBuilt = Date.now();
-  console.log(`[lineIndex] Catalog ready: ${newCache.size} lines cached (TTL: ${CACHE_TTL.lines}ms)`);
-  console.log(`[lineIndex] Indices built: StopToLinesMap=${stopToLinesMap.size} stops, IntersectionIndex=${lineIntersectionIndex.size} pairs`);
-
-  // ── Fire-and-forget: update stop name cache from openData ─────
-  populateStopNameCacheAsync().catch((err) => {
-    console.warn('[lineIndex] Background stop name cache update failed:', err);
-  });
 }
 
 // ── Public accessors ───────────────────────────────────────────────
@@ -459,13 +479,10 @@ export function getStopName(stopId: number): string | null {
   return stopNameCache.get(stopId) ?? null;
 }
 
-/** Return a Map<stopId, position> for a specific line and direction (O(1)). */
+/** Return a Map<stopId, position> for a specific line and direction (O(1) from precomputed cache). */
 export function getLinePositionMap(lineId: string, dir: string): Map<number, number> | null {
-  const lineInfo = linesCache.get(lineId);
-  if (!lineInfo) return null;
-  const dirData = lineInfo.directions[dir];
-  if (!dirData) return null;
-  const map = new Map<number, number>();
-  dirData.stops.forEach((sid, i) => map.set(sid, i));
-  return map;
+  const dirMaps = linePositionMaps.get(lineId);
+  if (!dirMaps) return null;
+  const posMap = dirMaps.get(dir);
+  return posMap ?? null;
 }

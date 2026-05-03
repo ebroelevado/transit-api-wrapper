@@ -1,90 +1,47 @@
 import { Router, Request, Response } from 'express';
 import * as lineIndex from '../sources/lineIndex';
 import * as legacyApi from '../sources/legacyApi';
-import path from 'path';
-import { DATA_DIR } from '../config';
-import { toScheduleId, getDayType, getTextColor } from '../utils/lineMapping';
+import { toScheduleId, getDayType } from '../utils/lineMapping';
+import { timeToMinutes, currentTimeStr, loadSchedules } from '../utils/helpers';
 
 const router = Router();
 
-// ─── Scratch cache for line status page ─────────────────────────────
+// ─── Scratch cache for line status page with periodic cleanup ────────
 
 let statusCache = new Map<string, { data: any; ts: number }>();
 const STATUS_CACHE_TTL = 30_000; // 30 seconds
 
-// ─── Helpers ────────────────────────────────────────────────────────
+// Periodic cleanup: remove entries older than 2× TTL every 60s
+const CLEANUP_INTERVAL = 60_000;
+let lastCleanup = Date.now();
 
-interface SchedulesRaw {
-  horarios_hardcoded: Record<string, Record<string, string[]>>;
-}
-
-let schedulesCache: SchedulesRaw | null = null;
-
-function loadSchedules(): SchedulesRaw {
-  if (schedulesCache) return schedulesCache;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  schedulesCache = require(path.join(DATA_DIR, 'schedules.json')) as SchedulesRaw;
-  return schedulesCache;
-}
-
-/** Parse "HH:MM" into minutes since midnight. */
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-/** Get current time in "HH:MM" format. */
-function currentTimeStr(): string {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+function cleanStatusCache(): void {
+  const now = Date.now();
+  if (now - lastCleanup < CLEANUP_INTERVAL) return;
+  lastCleanup = now;
+  const cutoff = now - 2 * STATUS_CACHE_TTL;
+  for (const [key, entry] of statusCache) {
+    if (entry.ts < cutoff) {
+      statusCache.delete(key);
+    }
+  }
 }
 
 // ─── GET /api/v1/alerts ─────────────────────────────────────────────
 
-/**
- * @swagger
- * /api/v1/alerts:
- *   get:
- *     tags: [Alerts]
- *     summary: Alertas activas del servicio TUS
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/alerts', (_req: Request, res: Response) => {
+  // Return a useful message with metadata about the alerts system
   res.json({
     alerts: [],
     total: 0,
     source: 'static',
+    message: 'No active service alerts at this time. Check /lines/:line/status for per-line operational status.',
+    updated: new Date().toISOString(),
   });
 });
 
 // ─── GET /api/v1/lines/:line/status ─────────────────────────────────
 
-/**
- * @swagger
- * /api/v1/lines/{line}/status:
- *   get:
- *     tags: [Alerts]
- *     summary: "Estado operativo de una línea: activa, frecuencia, próximos buses"
- *     parameters:
- *       - in: path
- *         name: line
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/lines/:line/status', async (req: Request, res: Response) => {
   const lineId = req.params.line as string;
 
@@ -99,6 +56,9 @@ router.get('/lines/:line/status', async (req: Request, res: Response) => {
       });
     }
 
+    // Periodic cache cleanup
+    cleanStatusCache();
+
     // Check cache
     const cached = statusCache.get(lineId);
     if (cached && Date.now() - cached.ts < STATUS_CACHE_TTL) {
@@ -109,14 +69,12 @@ router.get('/lines/:line/status', async (req: Request, res: Response) => {
     let lastKnownBusMinutesAgo: number | null = null;
     let isActive = true;
 
-    // Use the first stop of direction 1 to check for buses
     const dir1Stops = info.directions['1']?.stops;
     if (dir1Stops && dir1Stops.length > 0) {
       const checkStop = dir1Stops[0];
       const arrivalsRaw = await legacyApi.getArrivals(checkStop);
 
       if (!arrivalsRaw || 'error' in arrivalsRaw) {
-        // Legacy API unavailable — assume active
         isActive = info.active;
       } else {
         const rawData = arrivalsRaw as any[];
@@ -141,14 +99,13 @@ router.get('/lines/:line/status', async (req: Request, res: Response) => {
     if (scheduleId) {
       const schedules = loadSchedules().horarios_hardcoded;
       const day = getDayType();
-      const key = `${scheduleId}-1`; // direction 1
+      const key = `${scheduleId}-1`;
       const entry = schedules[key];
       if (entry && entry[day] && entry[day].length > 0) {
         const times = entry[day];
         serviceFirst = times[0];
         serviceLast = times[times.length - 1];
 
-        // Find next scheduled time
         const now = currentTimeStr();
         const nowMins = timeToMinutes(now);
         for (const t of times) {

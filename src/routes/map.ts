@@ -1,51 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { getStops, getStopById } from '../sources/openData';
-import { getLines, getLine, getLineStops, buildLineIndex } from '../sources/lineIndex';
-import { Stop } from '../types';
-import stopsMinRaw from '../../data/stops.min.json';
+import { getStops } from '../sources/openData';
+import { getLines, getLine, buildLineIndex } from '../sources/lineIndex';
+import { resolveStop } from '../utils/helpers';
 
 const router = Router();
 
-// ─── Helpers ────────────────────────────────────────────────────────
-
-/** Unified stop lookup: Open Data first, then stops.min.json fallback. */
-async function resolveStop(stopId: number): Promise<Stop | null> {
-  const fromOpen = await getStopById(stopId);
-  if (fromOpen) return fromOpen;
-
-  const min = stopsMinRaw as unknown as Record<string, [number, number, number, string]>;
-  const entry = min[String(stopId)];
-  if (!entry) return null;
-
-  return {
-    stopId: entry[0],
-    lat: entry[1],
-    lng: entry[2],
-    name: entry[3],
-    address: null,
-    sentido: null,
-    lines: [],
-    source: 'stops_min',
-  };
-}
-
 // ─── GET /api/v1/map/stops ─────────────────────────────────────────
-// Compact format: { stops:[[stopId,lat,lng,name],...], total, source:'open_data' }
 
-/**
- * @swagger
- * /api/v1/map/stops:
- *   get:
- *     tags: [Map]
- *     summary: 462 paradas en formato compacto [id,lat,lng,name]
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.get('/stops', async (_req: Request, res: Response) => {
   try {
     const stops = await getStops();
@@ -57,8 +18,6 @@ router.get('/stops', async (_req: Request, res: Response) => {
 });
 
 // ─── GET /api/v1/map/lines/:line ───────────────────────────────────
-// GeoJSON FeatureCollection with LineString per direction
-// Query: ?direction=all (default) | 1 | 2
 
 router.get('/lines/:line', async (req: Request, res: Response) => {
   try {
@@ -73,9 +32,10 @@ router.get('/lines/:line', async (req: Request, res: Response) => {
     const features: any[] = [];
 
     const buildFeature = async (dir: string, stops: number[], destination: string) => {
+      // Parallelize stop resolution with Promise.all
+      const resolved = await Promise.all(stops.map((sid) => resolveStop(sid)));
       const coordinates: [number, number][] = [];
-      for (const sid of stops) {
-        const stop = await resolveStop(sid);
+      for (const stop of resolved) {
         if (stop) {
           coordinates.push([stop.lng, stop.lat]);
         }
@@ -114,7 +74,6 @@ router.get('/lines/:line', async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/v1/map/lines ─────────────────────────────────────────
-// All lines as GeoJSON
 
 router.get('/lines', async (_req: Request, res: Response) => {
   try {
@@ -126,9 +85,10 @@ router.get('/lines', async (_req: Request, res: Response) => {
     for (const line of lines) {
       for (const dir of Object.keys(line.directions)) {
         const dirData = line.directions[dir];
+        // Parallelize stop resolution with Promise.all
+        const resolved = await Promise.all(dirData.stops.map((sid) => resolveStop(sid)));
         const coordinates: [number, number][] = [];
-        for (const sid of dirData.stops) {
-          const stop = await resolveStop(sid);
+        for (const stop of resolved) {
           if (stop) {
             coordinates.push([stop.lng, stop.lat]);
           }

@@ -55,17 +55,27 @@ router.options('/api/v1', (_req: Request, res: Response) => {
  *         description: No Content
  */
 router.options('/api/v1/stops/:stop', (_req: Request, res: Response) => {
-  const stop = _req.params.stop;
-  res.setHeader('Allow', 'GET, OPTIONS');
-  res.setHeader('Link', [
-    `</api/v1/stops/${stop}>; rel="self"`,
-    `</api/v1/stops/${stop}/arrivals>; rel="arrivals"`,
-    `</api/v1/stops/${stop}/next>; rel="next-bus"`,
-    `</api/v1/stops/${stop}/etd>; rel="etd"`,
-    `</api/v1/stops/${stop}/connections>; rel="connections"`,
-  ].join(', '));
-  res.setHeader('X-API-Version', VERSION);
-  res.status(204).end();
+  try {
+    const stop = _req.params.stop as string;
+    const stopId = parseInt(stop, 10);
+    if (isNaN(stopId)) {
+      return res.status(400).json({ error: 'invalid_params', message: 'stop must be a number' });
+    }
+    res.setHeader('Allow', 'GET, OPTIONS');
+    res.setHeader('Link', [
+      `</api/v1/stops/${stop}>; rel="self"`,
+      `</api/v1/stops/${stop}/arrivals>; rel="arrivals"`,
+      `</api/v1/stops/${stop}/next>; rel="next-bus"`,
+      `</api/v1/stops/${stop}/etd>; rel="etd"`,
+      `</api/v1/stops/${stop}/connections>; rel="connections"`,
+    ].join(', '));
+    res.setHeader('X-API-Version', VERSION);
+    res.status(204).end();
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
+    }
+  }
 });
 
 export default router;

@@ -23,13 +23,13 @@ const MAP: Record<string, LineMapping> = {
   '7C2': { publicId:'7C2', legacyId:'7C2', scheduleId:'72',  normalized:72 },
   '24C1':{ publicId:'24C1',legacyId:'24C1',scheduleId:'241', normalized:241 },
   '24C2':{ publicId:'24C2',legacyId:'24C2',scheduleId:'242', normalized:242 },
-  'E1':  { publicId:'E1',  legacyId:'E1',  scheduleId:'',    normalized:41 },
-  'E31': { publicId:'E31', legacyId:'E31', scheduleId:'',    normalized:31 },
+  'E1':  { publicId:'E1',  legacyId:'E1',  scheduleId:null,  normalized:41 },
+  'E31': { publicId:'E31', legacyId:'E31', scheduleId:null,  normalized:31 },
 };
 
 export function getMapping(id: string): LineMapping | undefined { return MAP[id]; }
 export function toLegacyId(id: string): string { return MAP[id]?.legacyId ?? id; }
-export function toScheduleId(id: string): string { return MAP[id]?.scheduleId ?? id; }
+export function toScheduleId(id: string): string | null { return MAP[id]?.scheduleId ?? id; }
 export function allPublicIds(): string[] { return Object.keys(MAP); }
 export function lineName(id: string): string { return `Línea ${id}`; }
 

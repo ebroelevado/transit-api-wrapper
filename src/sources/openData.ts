@@ -52,7 +52,8 @@ async function fetchAllStops(): Promise<Stop[]> {
         return Array.from(cache.values());
       }
 
-      cache.clear();
+      // Build into a temporary map first, then atomically replace
+      const newCache = new Map<number, Stop>();
 
       for (const r of data.resources) {
         const stopId = parseInt(r['ayto:numero'], 10);
@@ -69,7 +70,13 @@ async function fetchAllStops(): Promise<Stop[]> {
           source: 'open_data',
         };
 
-        cache.set(stopId, stop);
+        newCache.set(stopId, stop);
+      }
+
+      // Atomically replace: clear old cache and copy new entries
+      cache.clear();
+      for (const [k, v] of newCache) {
+        cache.set(k, v);
       }
 
       lastFetch = now;
@@ -107,6 +114,10 @@ export async function searchStops(query: string): Promise<Stop[]> {
       (s.address && s.address.toLowerCase().includes(q)) ||
       String(s.stopId).includes(q)
   );
+}
+
+export function getCacheAge(): number {
+  return lastFetch > 0 ? Date.now() - lastFetch : 0;
 }
 
 export async function getStopCount(): Promise<number> {

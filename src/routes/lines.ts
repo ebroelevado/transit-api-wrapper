@@ -2,20 +2,9 @@ import { Router, Request, Response } from 'express';
 import * as lineIndex from '../sources/lineIndex';
 import * as openData from '../sources/openData';
 import { toScheduleId } from '../utils/lineMapping';
-import stopsMinRaw from '../../data/stops.min.json';
-import { Stop } from '../types';
+import { resolveStop } from '../utils/helpers';
 
 const router = Router();
-const stopsMin = stopsMinRaw as unknown as Record<string, [number, number, number, string]>;
-
-function getStopCoords(stopId: number): { name: string; lat: number; lng: number; source: string; sentido: string | null; address: string | null; lines: string[] } | null {
-  const key = String(stopId);
-  if (stopsMin[key]) {
-    const [, lat, lng, name] = stopsMin[key];
-    return { name, lat, lng, source: 'stops_min', sentido: null, address: null, lines: [] };
-  }
-  return null;
-}
 
 /**
  * @swagger
@@ -313,9 +302,9 @@ router.get('/lines/:line/route', async (req: Request, res: Response) => {
       const stops = await Promise.all(dData.stops.map(async (sid) => {
         const odStop = await openData.getStopById(sid);
         if (odStop) return odStop;
-        const fallback = getStopCoords(sid);
-        if (fallback) return { stopId: sid, ...fallback, lines: lineIndex.getLinesForStop(sid) };
-        return { stopId: sid, name: `Parada ${sid}`, lat: 0, lng: 0, address: null, sentido: null, lines: [], source: 'stops_min' };
+        const fallback = await resolveStop(sid);
+        if (fallback) return { ...fallback, lines: lineIndex.getLinesForStop(sid) };
+        return { stopId: sid, name: `Parada ${sid}`, lat: null, lng: null, address: null, sentido: null, lines: [], source: 'stops_min' };
       }));
       directions.push({ id: dId, destination: dData.destination, stops });
     }
@@ -374,13 +363,33 @@ router.get('/lines/:line/route', async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  */
-router.get('/lines/:lineA/intersect/:lineB', (req: Request, res: Response) => {
-  const a = req.params.lineA as string;
-  const b = req.params.lineB as string;
-  const stopsA = new Set(lineIndex.getLineStops(a, '1').concat(lineIndex.getLineStops(a, '2')));
-  const stopsB = lineIndex.getLineStops(b, '1').concat(lineIndex.getLineStops(b, '2'));
-  const common = stopsB.filter(s => stopsA.has(s));
-  res.json({ line_a: a, line_b: b, common_stops: common, total: common.length });
+router.get('/lines/:lineA/intersect/:lineB', async (req: Request, res: Response) => {
+  try {
+    const a = req.params.lineA as string;
+    const b = req.params.lineB as string;
+
+    await lineIndex.buildLineIndex();
+
+    // Validate both lines exist
+    const lineA = lineIndex.getLine(a);
+    const lineB = lineIndex.getLine(b);
+    if (!lineA) {
+      return res.status(404).json({ error: 'line_not_found', message: `La línea '${a}' no existe` });
+    }
+    if (!lineB) {
+      return res.status(404).json({ error: 'line_not_found', message: `La línea '${b}' no existe` });
+    }
+
+    const stopsA = new Set(lineIndex.getLineStops(a, '1').concat(lineIndex.getLineStops(a, '2')));
+    const stopsB = lineIndex.getLineStops(b, '1').concat(lineIndex.getLineStops(b, '2'));
+    const common = stopsB.filter(s => stopsA.has(s));
+    res.json({ line_a: a, line_b: b, common_stops: common, total: common.length });
+  } catch (err: any) {
+    console.error('[lines] Error:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
+    }
+  }
 });
 
 export default router;

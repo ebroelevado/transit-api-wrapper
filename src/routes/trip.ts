@@ -1,39 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { getStopById } from '../sources/openData';
 import { getStopPositions, getCommonStops, getStopName, buildLineIndex, getLinesForStop, getLine, getLinePositionMap } from '../sources/lineIndex';
-import { Stop } from '../types';
-import stopsMinRaw from '../../data/stops.min.json';
+import { resolveStop } from '../utils/helpers';
 
 const router = Router();
-
-// ─── Helpers ────────────────────────────────────────────────────────
-
-/** Unified stop lookup: Open Data first, then stops.min.json fallback. */
-async function resolveStop(stopId: number): Promise<Stop | null> {
-  const fromOpen = await getStopById(stopId);
-  if (fromOpen) return fromOpen;
-
-  const min = stopsMinRaw as unknown as Record<string, [number, number, number, string]>;
-  const entry = min[String(stopId)];
-  if (!entry) return null;
-
-  return {
-    stopId: entry[0],
-    lat: entry[1],
-    lng: entry[2],
-    name: entry[3],
-    address: null,
-    sentido: null,
-    lines: [],
-    source: 'stops_min',
-  };
-}
 
 // ─── Trip option type ───────────────────────────────────────────────
 
 interface TripOption {
   type: 'direct' | 'transfer';
   line: string;
+  name: string;
   color: string;
   direction: string;
   stops: number;
@@ -78,6 +55,7 @@ function findDirectRoutes(fromId: number, toId: number): TripOption[] {
         options.push({
           type: 'direct',
           line: lineId,
+          name: lineInfo.name,
           color: lineInfo.color,
           direction: lineInfo.directions[dir].destination,
           stops: nStops,
@@ -94,6 +72,7 @@ function findDirectRoutes(fromId: number, toId: number): TripOption[] {
             options.push({
               type: 'direct',
               line: lineId,
+              name: lineInfo.name,
               color: lineInfo.color,
               direction: lineInfo.directions[dir].destination,
               stops: wrapStops,
@@ -124,6 +103,7 @@ function findDirectRoutes(fromId: number, toId: number): TripOption[] {
             options.push({
               type: 'direct',
               line: lineId,
+              name: lineInfo.name,
               color: lineInfo.color,
               direction: lineInfo.directions[dirA].destination,
               stops: leg1Stops,
@@ -148,6 +128,7 @@ function findDirectRoutes(fromId: number, toId: number): TripOption[] {
             options.push({
               type: 'direct',
               line: lineId,
+              name: lineInfo.name,
               color: lineInfo.color,
               direction: lineInfo.directions[dirB].destination,
               stops: leg1Stops,
@@ -211,6 +192,7 @@ function findTransferRoutes(fromId: number, toId: number): TripOption[] {
             options.push({
               type: 'transfer',
               line: lineA,
+              name: lineAInfo.name,
               color: lineAInfo.color,
               direction: lineAInfo.directions[dirA].destination,
               stops: leg1Stops,

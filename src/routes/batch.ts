@@ -1,37 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { getArrivals } from '../sources/legacyApi';
-import { getStopById } from '../sources/openData';
 import { getLine, buildLineIndex } from '../sources/lineIndex';
 import { BATCH_CONCURRENCY } from '../config';
-import { Stop, LineInfo, Arrival } from '../types';
-import stopsMinRaw from '../../data/stops.min.json';
+import { Arrival } from '../types';
+import { resolveStop } from '../utils/helpers';
 
 const router = Router();
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/** Unified stop lookup: Open Data first, then stops.min.json fallback. */
-async function resolveStop(stopId: number): Promise<Stop | null> {
-  const fromOpen = await getStopById(stopId);
-  if (fromOpen) return fromOpen;
-
-  const min = stopsMinRaw as unknown as Record<string, [number, number, number, string]>;
-  const entry = min[String(stopId)];
-  if (!entry) return null;
-
-  return {
-    stopId: entry[0],
-    lat: entry[1],
-    lng: entry[2],
-    name: entry[3],
-    address: null,
-    sentido: null,
-    lines: [],
-    source: 'stops_min',
-  };
-}
-
-/** Run async tasks with a concurrency limit. */
+/** Run async tasks with a concurrency limit. Each task is wrapped in try/catch so Promise.all never rejects. */
 async function withConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
   let idx = 0;
@@ -39,7 +17,12 @@ async function withConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): P
   async function worker(): Promise<void> {
     while (idx < tasks.length) {
       const i = idx++;
-      results[i] = await tasks[i]();
+      try {
+        results[i] = await tasks[i]();
+      } catch (err: any) {
+        // Store error as result so Promise.all doesn't reject
+        results[i] = { error: err?.message || 'task_failed' } as unknown as T;
+      }
     }
   }
 
@@ -49,38 +32,7 @@ async function withConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): P
 }
 
 // ─── POST /api/v1/batch/arrivals ───────────────────────────────────
-// Body: { stops: number[], lines?: string[] }
-// Parallel getArrivals calls (max BATCH_CONCURRENCY concurrent)
 
-/**
- * @swagger
- * /api/v1/batch/arrivals:
- *   post:
- *     tags: [Batch]
- *     summary: Llegadas de varias paradas en paralelo (máx 5 concurrentes)
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               stops:
- *                 type: array
- *                 items:
- *                   type: integer
- *               lines:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.post('/arrivals', async (req: Request, res: Response) => {
   try {
     const { stops, lines } = req.body as { stops?: number[]; lines?: string[] };
@@ -102,13 +54,21 @@ router.post('/arrivals', async (req: Request, res: Response) => {
         const resolved = await resolveStop(stopId);
         const arrivalsRaw = await getArrivals(stopId);
 
-        if ('error' in (arrivalsRaw as any) && (arrivalsRaw as any).error === 'legacy_unavailable') {
+        if (!arrivalsRaw) {
           errors.push({ stop: stopId, error: 'legacy_unavailable' });
           return { stop: stopId, name: resolved?.name || 'Unknown', arrivals: [], error: 'legacy_unavailable' };
         }
+        // More specific check: is it an error object rather than an arrivals array?
+        if (!Array.isArray(arrivalsRaw)) {
+          const errObj = arrivalsRaw as { error?: string };
+          if (errObj.error) {
+            errors.push({ stop: stopId, error: 'legacy_unavailable' });
+            return { stop: stopId, name: resolved?.name || 'Unknown', arrivals: [], error: 'legacy_unavailable' };
+          }
+        }
 
         const rawData = arrivalsRaw as any[];
-        const arrivalEntries = rawData[0] || [];
+        const arrivalEntries: any[] = Array.isArray(rawData[0]) ? rawData[0] : [];
         const allLineLabels = rawData[1] || [];
 
         const arrivals: Arrival[] = arrivalEntries.map((entry: any[]) => ({
@@ -150,34 +110,7 @@ router.post('/arrivals', async (req: Request, res: Response) => {
 });
 
 // ─── POST /api/v1/batch/stops ──────────────────────────────────────
-// Body: { stops: number[] }
-// Lookup stops (Open Data + stops.min.json fallback)
 
-/**
- * @swagger
- * /api/v1/batch/stops:
- *   post:
- *     tags: [Batch]
- *     summary: Información de varias paradas
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               stops:
- *                 type: array
- *                 items:
- *                   type: integer
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.post('/stops', async (req: Request, res: Response) => {
   try {
     const { stops } = req.body as { stops?: number[] };
@@ -207,34 +140,7 @@ router.post('/stops', async (req: Request, res: Response) => {
 });
 
 // ─── POST /api/v1/batch/lines ──────────────────────────────────────
-// Body: { lines: string[] }
-// Lookup lines from lineIndex
 
-/**
- * @swagger
- * /api/v1/batch/lines:
- *   post:
- *     tags: [Batch]
- *     summary: Información de varias líneas
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               lines:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.post('/lines', async (req: Request, res: Response) => {
   try {
     const { lines } = req.body as { lines?: string[] };

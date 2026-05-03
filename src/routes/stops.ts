@@ -3,22 +3,14 @@ import * as openData from '../sources/openData';
 import * as lineIndex from '../sources/lineIndex';
 import { haversine } from '../utils/haversine';
 import { NEARBY_RADIUS } from '../config';
-import stopsMinRaw from '../../data/stops.min.json';
+import { resolveStop } from '../utils/helpers';
 import { Stop } from '../types';
 
 const router = Router();
-const stopsMin = stopsMinRaw as unknown as Record<string, [number, number, number, string]>;
 
-async function resolveStop(stopId: number): Promise<Stop | null> {
-  const od = await openData.getStopById(stopId);
-  if (od) return od;
-  const key = String(stopId);
-  if (stopsMin[key]) {
-    const [, lat, lng, name] = stopsMin[key];
-    return { stopId, name, lat, lng, address: null, sentido: null, lines: [], source: 'stops_min' };
-  }
-  return null;
-}
+// ─── Nearby cache (stopId → nearby stops, TTL 5 min) ───────────────
+const nearbyCache = new Map<number, { data: { stopId: number; name: string; meters: number }[]; ts: number }>();
+const NEARBY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * @swagger
@@ -97,8 +89,8 @@ async function resolveStop(stopId: number): Promise<Stop | null> {
 router.get('/stops', async (req: Request, res: Response) => {
   try {
     const q = req.query.q as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Number.isNaN(parseInt(req.query.limit as string)) ? 50 : parseInt(req.query.limit as string);
+    const offset = Number.isNaN(parseInt(req.query.offset as string)) ? 0 : parseInt(req.query.offset as string);
 
     let results: Stop[];
     if (q) {
@@ -213,17 +205,25 @@ router.get('/stops/:stop', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'stop_not_found', message: `La parada ${stopId} no existe` });
     }
 
+    await lineIndex.buildLineIndex();
     const lines = lineIndex.getLinesForStop(stopId);
     const allLines = lineIndex.getLines().filter(l => lines.includes(l.id));
 
-    // Nearby stops
-    const allStops = await openData.getStops();
-    const nearby = allStops
-      .filter(s => s.stopId !== stopId)
-      .map(s => ({ stopId: s.stopId, name: s.name, meters: Math.round(haversine(stop.lat, stop.lng, s.lat, s.lng)) }))
-      .filter(s => s.meters <= NEARBY_RADIUS)
-      .sort((a, b) => a.meters - b.meters)
-      .slice(0, 10);
+    // Nearby stops (cached per stopId, TTL 5 min)
+    let nearby: { stopId: number; name: string; meters: number }[];
+    const cached = nearbyCache.get(stopId);
+    if (cached && Date.now() - cached.ts < NEARBY_CACHE_TTL) {
+      nearby = cached.data;
+    } else {
+      const allStops = await openData.getStops();
+      nearby = allStops
+        .filter(s => s.stopId !== stopId)
+        .map(s => ({ stopId: s.stopId, name: s.name, meters: Math.round(haversine(stop.lat, stop.lng, s.lat, s.lng)) }))
+        .filter(s => s.meters <= NEARBY_RADIUS)
+        .sort((a, b) => a.meters - b.meters)
+        .slice(0, 10);
+      nearbyCache.set(stopId, { data: nearby, ts: Date.now() });
+    }
 
     res.json({
       stopId: stop.stopId,

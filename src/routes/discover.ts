@@ -77,7 +77,7 @@ router.get('/discover', async (_req: Request, res: Response) => {
       },
       fares: { total: 7, url: '/api/v1/fares' },
       endpoints: { total: 37 },
-      status: { legacy_api: 'ok', open_data: 'ok' },
+      status: { legacy_api: lines.length > 0 ? 'ok' : 'unavailable', open_data: odCount > 0 ? 'ok' : 'unavailable' },
     });
   } catch (err: any) {
     console.error('[discover] Error:', err?.message || err);
@@ -131,8 +131,10 @@ router.head('/discover', async (_req: Request, res: Response) => {
     res.setHeader('X-API-Version', VERSION);
     res.setHeader('X-Cache-Stops', String(odCount));
     res.setHeader('X-Cache-Lines', String(lines.length));
-    res.setHeader('X-Legacy-Status', 'ok');
-    res.setHeader('X-OpenData-Status', 'ok');
+    const odStatus = odCount > 0 ? 'ok' : 'unavailable';
+    const lineStatus = lines.length > 0 ? 'ok' : 'unavailable';
+    res.setHeader('X-Legacy-Status', lineStatus);
+    res.setHeader('X-OpenData-Status', odStatus);
     res.status(200).end();
   } catch (err: any) {
     console.error('[discover] Error:', err?.message || err);

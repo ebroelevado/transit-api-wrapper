@@ -50,6 +50,12 @@ export interface ApiError {
 export interface LineMapping {
   publicId: string;
   legacyId: string;
-  scheduleId: string;
+  scheduleId: string | null;
   normalized: number;
+}
+
+// ─── Schedules ─────────────────────────────────────────────────────
+
+export interface SchedulesRaw {
+  horarios_hardcoded: Record<string, Record<string, string[]>>;
 }

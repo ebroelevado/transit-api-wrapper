@@ -3,15 +3,31 @@ import { LEGACY_API_BASE } from '../config';
 
 const TIMEOUT_MS = 5000;
 
+// ─── Types ──────────────────────────────────────────────────────────
+
+/** A single arrival entry from the Legacy API: [label, destination, nextMinutes, followingMinutes] */
+export type LegacyArrivalEntry = [string, string, number, number];
+
+/** Full arrivals response: [[arrivals...], allLineLabels] */
+export type LegacyArrivalsResponse = [LegacyArrivalEntry[], string[]];
+
+/** A route stop entry: [stopId, stopName, [lines...]] */
+export type LegacyRouteStopEntry = [number, string, string[]];
+
+/** Legacy API error response */
+export interface LegacyUnavailable {
+  error: 'legacy_unavailable';
+}
+
 // ─── Shared error result ────────────────────────────────────────────
 
-function unavailable() {
+function unavailable(): LegacyUnavailable {
   return { error: 'legacy_unavailable' as const };
 }
 
 // ─── Internal POST helper ───────────────────────────────────────────
 
-async function post<T>(path: string, body: Record<string, unknown>): Promise<T | { error: 'legacy_unavailable' }> {
+async function post<T>(path: string, body: Record<string, unknown>): Promise<T | LegacyUnavailable> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -50,12 +66,12 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T |
 export async function getArrivals(
   stopId: number,
   lineLabel?: string,
-): Promise<any[] | { error: 'legacy_unavailable' }> {
+): Promise<LegacyArrivalsResponse | LegacyUnavailable> {
   const body: Record<string, unknown> = { stopId };
   if (lineLabel) {
     body.lineLabel = lineLabel;
   }
-  return post<any[]>('/api/v1/estimations/get-compact', body);
+  return post<LegacyArrivalsResponse>('/api/v1/estimations/get-compact', body);
 }
 
 /**
@@ -70,8 +86,8 @@ export async function getArrivals(
 export async function getRoute(
   stopId: number,
   lineLabel: string,
-): Promise<any[] | { error: 'legacy_unavailable' }> {
-  return post<any[]>('/api/v1/routes/get-compact', { stopId, lineLabel });
+): Promise<LegacyRouteStopEntry[] | LegacyUnavailable> {
+  return post<LegacyRouteStopEntry[]>('/api/v1/routes/get-compact', { stopId, lineLabel });
 }
 
 /**
@@ -81,7 +97,7 @@ export async function getRoute(
  * or `{ error: 'legacy_unavailable' }` on failure.
  */
 export async function getHealth(): Promise<
-  { ok: true; latency_ms: number } | { error: 'legacy_unavailable' }
+  { ok: true; latency_ms: number } | LegacyUnavailable
 > {
   const start = Date.now();
   const controller = new AbortController();

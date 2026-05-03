@@ -4,34 +4,7 @@ import * as lineIndex from '../sources/lineIndex';
 const router = Router();
 
 // ─── POST /api/v1/compare/lines ─────────────────────────────────────
-// Body: { lines: string[] }
-// Returns side-by-side comparison and common stops
 
-/**
- * @swagger
- * /api/v1/compare/lines:
- *   post:
- *     tags: [Compare]
- *     summary: Comparar líneas lado a lado con paradas comunes
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               lines:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- */
 router.post('/lines', async (req: Request, res: Response) => {
   try {
     const { lines } = req.body as { lines?: string[] };
@@ -47,12 +20,27 @@ router.post('/lines', async (req: Request, res: Response) => {
 
     await lineIndex.buildLineIndex();
 
+    // Validate all lines exist — 404 if any is missing
+    const missingLines: string[] = [];
+    for (const lineId of lines) {
+      if (!lineIndex.getLine(lineId)) {
+        missingLines.push(lineId);
+      }
+    }
+    if (missingLines.length > 0) {
+      return res.status(404).json({
+        error: 'line_not_found',
+        message: `Las siguientes líneas no existen: ${missingLines.join(', ')}`,
+        source: 'cache',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Build stop sets for each line (union of both directions)
     const lineStopSets: Map<string, Set<number>> = new Map();
     for (const lineId of lines) {
       const stops1 = new Set(lineIndex.getLineStops(lineId, '1'));
       const stops2 = new Set(lineIndex.getLineStops(lineId, '2'));
-      // Union of both directions
       const allStops = new Set<number>([...stops1, ...stops2]);
       lineStopSets.set(lineId, allStops);
     }
