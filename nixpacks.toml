@@ -1,4 +1,4 @@
-# Nixpacks configuration for Transit API Wrapper
+# Nixpacks configuration for SANTANDER TUS API
 # Dokploy → Select "Nixpacks" as build method
 
 [phases.setup]

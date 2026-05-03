@@ -30,7 +30,7 @@ Una API REST diseñada con enfoque **DX-First** (Developer Experience). Envuelve
 
 ```mermaid
 graph TD
-    Client[Cliente App/Web] -->|HTTP REST| API[Transit API Wrapper]
+    Client[Cliente App/Web] -->|HTTP REST| API[SANTANDER TUS API]
     API -->|Zod Validation| Router
     Router -->|Rate Limiter| Services
 

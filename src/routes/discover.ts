@@ -68,7 +68,7 @@ router.get('/discover', async (_req: Request, res: Response) => {
     const odCount = await openData.getStopCount();
     const lines = lineIndex.getLines();
     res.json({
-      app: { name: 'Transit API Wrapper', version: VERSION },
+      app: { name: 'SANTANDER TUS API', version: VERSION },
       lines: { total: lines.length, url: '/api/v1/lines' },
       stops: {
         total: odCount,
