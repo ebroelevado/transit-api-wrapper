@@ -54,7 +54,7 @@ app.use('/api/v1/docs', async (req, res, next) => {
       layout: 'modern',
       hideDownloadButton: true,
     });
-    handler(req, res, next);
+    handler(req as any, res as any, next);
   } catch (err) {
     next(err);
   }
