@@ -2,20 +2,47 @@ openapi: 3.1.0
 paths:
   /api/v1/fares:
     get:
+      operationId: getFares
       tags: [Fares]
-      summary: Catálogo de tarifas y abonos
+      summary: Tarifas, abonos y puntos de recarga
       description: |
-        Lista oficial de precios para billetes sencillos, tarjeta estándar, abonos mensuales y tarjetas especiales (joven, peques, familia numerosa).
+        Obtiene la información vigente sobre los costes del billete individual y las modalidades de abono (Tarjeta Transporte, Carnet Joven, etc.).
+        
+        Incluye un listado de **puntos de recarga físicos** (estancos, quioscos) distribuidos por la ciudad de Santander.
       responses:
         200:
-          description: OK
+          description: Información de tarifas recuperada.
           content:
             application/json:
               example:
                 fares:
-                  - type: "Billete Sencillo"
+                  - name: "Billete Ordinario"
                     price: 1.30
-                  - type: "Tarjeta Recargable Estándar"
+                    currency: "EUR"
+                  - name: "Tarjeta Transporte (Recargable)"
                     price: 0.66
+                    currency: "EUR"
+                    min_recharge: 6.00
+                recharge_points:
+                  - name: "Estanco N1"
+                    address: "Calvo Sotelo, 1"
+                    location: { lat: 43.4621, lng: -3.8041 }
               schema:
                 type: object
+                properties:
+                  fares:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        price: { type: number }
+                        currency: { type: string }
+                  recharge_points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        address: { type: string }
+                        location: { $ref: '#/components/schemas/Coordinate' }

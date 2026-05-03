@@ -1,117 +1,58 @@
 openapi: 3.1.0
 paths:
-  /api/v1/lines/{line}/schedules:
+  /api/v1/schedules/{line}:
     get:
+      operationId: getLineSchedule
       tags: [Schedules]
-      summary: Horarios programados de una línea
+      summary: Horarios programados (Teóricos)
       description: |
-        Devuelve la lista de horarios estáticos (hora teórica de salida en cabecera) para una línea específica.
+        Accede a la rejilla de horarios teórica de una línea. 
         
-        A diferencia de `/arrivals` que es tiempo real, `/schedules` devuelve el plan de servicio preestablecido y proviene del **Open Data Santander**. Es útil para mostrar al usuario la frecuencia teórica de una línea antes de que el bus comience su recorrido.
+        A diferencia de las "llegadas en tiempo real", este endpoint devuelve la **planificación estática** (frecuencias y horas de paso programadas) que no tiene en cuenta retrasos por tráfico.
+        
+        Es útil para consultas a futuro (ej. "¿A qué hora pasa el último bus de la noche?").
       parameters:
         - in: path
           name: line
           required: true
+          schema: { type: string }
+          example: "LC"
+          description: ID de la línea.
+        - in: query
+          name: type
+          required: false
           schema:
             type: string
-          description: "ID de la línea (ej. `LC`, `1`, `N1`)"
-        - in: query
-          name: day
-          schema:
-            type: string
-            enum: [weekday, saturday, holiday]
-            default: weekday
-          description: |
-            Filtra por el tipo de día:
-            - `weekday`: Lunes a Viernes (laborables)
-            - `saturday`: Sábados
-            - `holiday`: Domingos y Festivos
-        - in: query
-          name: direction
-          schema:
-            type: string
-            enum: [forward, backward]
-            default: forward
-          description: |
-            Filtra por la dirección de la ruta:
-            - `forward`: Ida (Dirección 1)
-            - `backward`: Vuelta (Dirección 2)
-        - in: query
-          name: limit
-          schema:
-            type: integer
-          description: "Número máximo de horas a devolver. Útil para hacer un 'Próximo horario' calculando localmente desde la hora actual si pides `limit=1` o `limit=3`."
+            enum: [workday, saturday, sunday]
+            default: workday
+          description: Tipo de día para filtrar los horarios.
       responses:
         200:
-          description: Horarios devueltos correctamente.
+          description: Horarios recuperados.
           content:
             application/json:
               example:
                 line: "LC"
-                direction: "forward"
-                day: "weekday"
-                day_name: "Laborables"
-                times:
-                  - "06:30"
-                  - "06:45"
-                  - "07:00"
-                total: 3
-                first: "06:30"
-                last: "07:00"
-                frequency_min: 15
-                source: "open_data"
+                day_type: "workday"
+                schedule:
+                  - time: "07:30"
+                    frequency_min: 10
+                  - time: "07:40"
+                    frequency_min: 10
               schema:
                 type: object
                 properties:
-                  line:
-                    type: string
-                  direction:
-                    type: string
-                  day:
-                    type: string
-                  day_name:
-                    type: string
-                  times:
+                  line: { type: string }
+                  day_type: { type: string }
+                  schedule:
                     type: array
                     items:
-                      type: string
-                  total:
-                    type: integer
-                  first:
-                    type: string
-                  last:
-                    type: string
-                  frequency_min:
-                    type: integer
-                    nullable: true
-                  source:
-                    type: string
-
-  /api/v1/stops/{stop}/schedules:
-    get:
-      tags: [Schedules]
-      summary: Horarios teóricos de todas las líneas en una parada
-      description: |
-        Similar a `/lines/{line}/schedules`, pero agrupado por todas las líneas que pasan por una parada en concreto.
-        Devuelve el plan estático (no en tiempo real). Útil para pintar la tabla horaria tradicional de la marquesina de autobús.
-      parameters:
-        - in: path
-          name: stop
-          required: true
-          schema:
-            type: integer
-          description: "ID numérico de la parada"
-        - in: query
-          name: day
-          schema:
-            type: string
-            enum: [weekday, saturday, holiday]
-            default: weekday
-          description: "Tipo de día a consultar."
-      responses:
-        200:
-          description: "Horarios por parada recuperados."
+                      type: object
+                      properties:
+                        time: { type: string }
+                        frequency_min: { type: integer }
+        404:
+          description: Línea no encontrada o sin horarios registrados.
           content:
             application/json:
-              schema:
-                type: object
+              $ref: '#/components/schemas/ErrorResponse'

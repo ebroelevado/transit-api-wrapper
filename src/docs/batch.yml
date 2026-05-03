@@ -2,37 +2,70 @@ openapi: 3.1.0
 paths:
   /api/v1/batch/arrivals:
     post:
+      operationId: getBatchArrivals
       tags: [Batch]
-      summary: Consultar estimaciones de múltiples paradas simultáneamente
+      summary: Consulta masiva de tiempos de llegada
       description: |
-        Envía un array de `stopIds` y devuelve las estimaciones de llegada agrupadas para todas ellas.
-        Reduce drásticamente la latencia de red si el cliente web necesita renderizar el estado de muchas paradas de una sola vez.
+        Optimiza tus peticiones consultando los tiempos de llegada de **múltiples paradas en una sola llamada HTTP**. 
+        
+        Es ideal para aplicaciones que muestran un "Panel de Favoritos" o una vista de mapa con varios postes seleccionados. Internamente, el sistema realiza las peticiones en paralelo para minimizar la latencia total.
       requestBody:
         required: true
         content:
           application/json:
+            example:
+              stops: [41, 42, 120]
             schema:
               type: object
+              required: [stops]
               properties:
                 stops:
                   type: array
                   items:
                     type: integer
-            example:
-              stops: [41, 42, 100]
+                  description: Array con los IDs de las paradas a consultar.
       responses:
         200:
-          description: OK
+          description: Resultados agrupados por parada.
           content:
             application/json:
               example:
-                success: true
                 results:
                   "41":
-                    - line: "LC"
-                      estimate1: 5
+                    arrivals: [...]
+                    success: true
                   "42":
-                    - line: "1"
-                      estimate1: 1
+                    arrivals: [...]
+                    success: true
+                summary:
+                  requested: 3
+                  successful: 2
+                  failed: 1
               schema:
                 type: object
+                properties:
+                  results:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        arrivals:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/Arrival'
+                        success:
+                          type: boolean
+                  summary:
+                    type: object
+                    properties:
+                      requested:
+                        type: integer
+                      successful:
+                        type: integer
+                      failed:
+                        type: integer
+        400:
+          description: Cuerpo de la petición mal formado.
+          content:
+            application/json:
+              $ref: '#/components/schemas/ErrorResponse'

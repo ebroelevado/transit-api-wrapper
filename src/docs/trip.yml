@@ -2,76 +2,73 @@ openapi: 3.1.0
 paths:
   /api/v1/trip/plan:
     get:
+      operationId: planTrip
       tags: [Trip]
-      summary: Planificador intermodal de viajes (A a B)
+      summary: Planificador de viajes (Cómo ir)
       description: |
-        Calcula la ruta óptima en autobús y a pie entre un origen y un destino.
-        Se apoya en **OpenTripPlanner (OTP)** internamente. Permite ajustar si quieres minimizar transbordos o caminar menos.
+        Calcula las mejores opciones de transporte entre dos puntos geográficos (Origen y Destino).
+        
+        ### Algoritmo de Enrutamiento
+        El motor de búsqueda evalúa:
+        1. **Distancia a pie** hasta la parada inicial.
+        2. **Tiempo de viaje** en bus basado en promedios históricos.
+        3. **Transbordos** necesarios (intentando minimizarlos).
+        4. **Caminata final** hasta el destino.
+        
+        Devuelve un array de itinerarios sugeridos ordenados por tiempo total de trayecto.
       parameters:
         - in: query
-          name: from
+          name: from_lat
           required: true
-          schema:
-            type: string
-          description: "Coordenadas de origen (`lat,lng`)"
+          schema: { type: number, format: float }
+          example: 43.4616
+          description: Latitud de origen.
         - in: query
-          name: to
+          name: from_lng
           required: true
-          schema:
-            type: string
-          description: "Coordenadas de destino (`lat,lng`)"
+          schema: { type: number, format: float }
+          example: -3.8055
+          description: Longitud de origen.
         - in: query
-          name: time
-          required: false
-          schema:
-            type: string
-          description: "Hora de salida (`HH:mm`). Por defecto ahora."
+          name: to_lat
+          required: true
+          schema: { type: number, format: float }
+          example: 43.4721
+          description: Latitud de destino.
         - in: query
-          name: date
-          required: false
-          schema:
-            type: string
-          description: "Fecha de salida (`YYYY-MM-DD`). Por defecto hoy."
-        - in: query
-          name: mode
-          required: false
-          schema:
-            type: string
-            default: TRANSIT,WALK
-          description: "Modos de transporte permitidos."
+          name: to_lng
+          required: true
+          schema: { type: number, format: float }
+          example: -3.7915
+          description: Longitud de destino.
       responses:
         200:
-          description: Itinerarios encontrados
+          description: Itinerarios sugeridos.
           content:
             application/json:
+              example:
+                itineraries:
+                  - duration_min: 12
+                    walk_m: 200
+                    legs:
+                      - type: "bus"
+                        line: "LC"
+                        from: "Ayuntamiento"
+                        to: "Valdecilla"
+                total: 1
               schema:
                 type: object
-
-  /api/v1/trip/connections/{stop}:
-    get:
-      tags: [Trip]
-      summary: Conexiones Isócronas desde una parada
-      description: |
-        Descubre hasta dónde puedes llegar en un máximo de X minutos desde una parada específica.
-        Excelente para mapas de calor o calculadoras de isócronas.
-      parameters:
-        - in: path
-          name: stop
-          required: true
-          schema:
-            type: integer
-          description: ID de la parada de origen
-        - in: query
-          name: maxMinutes
-          required: false
-          schema:
-            type: integer
-            default: 30
-          description: "Minutos máximos de viaje."
-      responses:
-        200:
-          description: Paradas alcanzables
+                properties:
+                  itineraries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        duration_min: { type: integer }
+                        walk_m: { type: integer }
+                        legs: { type: array, items: { type: object } }
+        400:
+          description: Coordenadas inválidas.
           content:
             application/json:
-              schema:
-                type: object
+              $ref: '#/components/schemas/ErrorResponse'

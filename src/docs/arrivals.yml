@@ -2,33 +2,43 @@ openapi: 3.1.0
 paths:
   /api/v1/stops/{stop}/arrivals:
     get:
+      operationId: getStopArrivals
       tags: [Arrivals]
       summary: Estimaciones de llegada en tiempo real
       description: |
-        Obtiene las estimaciones de tiempo (en minutos) para los próximos autobuses que llegarán a una parada específica.
+        Consulta los tiempos de espera para los próximos autobuses que llegarán a una parada. 
         
-        Este endpoint consulta directamente a la **Legacy API del TUS** para obtener información en tiempo real. 
-        Si el bus tiene sistema GPS activo, se devolverán los minutos estimados. Si no, `estimate1` o `estimate2` pueden ser null.
+        ### Origen de los datos
+        Este endpoint es un proxy hacia la **Legacy API del TUS**, que procesa la telemetría GPS de la flota en tiempo real. 
+        
+        - **Estimación 1 y 2**: Representan los minutos restantes para el primer y segundo bus de cada línea.
+        - **Valores Nulos**: Si un bus no tiene el GPS activo o está fuera de servicio, los valores de estimación pueden ser `null`.
+        - **Cache**: Las respuestas se cachean por 15 segundos para optimizar el tráfico hacia el servidor legacy sin comprometer la precisión.
       parameters:
         - in: path
           name: stop
           required: true
           schema:
             type: integer
-          description: ID de la parada (ej. `41` para el Ayuntamiento).
+          example: 41
+          description: ID de la parada.
         - in: query
           name: line
+          required: false
           schema:
             type: string
-          description: Opcional. Filtra las llegadas para mostrar únicamente las de una línea específica (ej. `LC`, `1`, `N1`).
+          example: "LC"
+          description: Opcional. Filtra los resultados para mostrar solo una línea específica.
         - in: query
           name: limit
+          required: false
           schema:
             type: integer
-          description: Opcional. Limita el número de estimaciones devueltas por línea. Por defecto no hay límite, pero puedes usar `limit=1` si solo quieres el próximo autobús inminente.
+          example: 1
+          description: Opcional. Limita el número de estimaciones por línea (ej. `limit=1` para ver solo el bus más inminente).
       responses:
         200:
-          description: Estimaciones recuperadas exitosamente.
+          description: Predicciones de llegada obtenidas con éxito.
           content:
             application/json:
               example:
@@ -41,13 +51,8 @@ paths:
                     estimate1: 2
                     estimate2: 15
                     is_legacy: true
-                  - line: "1"
-                    destination: "Arsenio Odriozola"
-                    estimate1: 8
-                    estimate2: null
-                    is_legacy: true
                 summary:
-                  total: 2
+                  total: 1
                   source: "legacy_api"
                   cached: false
                   timestamp: "2026-05-03T20:30:00.000Z"
@@ -64,20 +69,7 @@ paths:
                   arrivals:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        line:
-                          type: string
-                        destination:
-                          type: string
-                        estimate1:
-                          type: integer
-                          nullable: true
-                        estimate2:
-                          type: integer
-                          nullable: true
-                        is_legacy:
-                          type: boolean
+                      $ref: '#/components/schemas/Arrival'
                   summary:
                     type: object
                     properties:
@@ -91,22 +83,12 @@ paths:
                         type: string
                         format: date-time
         400:
-          description: Error de validación en los parámetros.
+          description: Parámetros de consulta inválidos.
           content:
             application/json:
-              example:
-                success: false
-                error:
-                  code: VALIDATION_ERROR
-                  message: Invalid request parameters
-                  details: []
+              $ref: '#/components/schemas/ErrorResponse'
         404:
-          description: La parada no fue encontrada en nuestro índice.
+          description: La parada no existe en el índice maestro.
           content:
             application/json:
-              example:
-                success: false
-                error:
-                  code: STOP_NOT_FOUND
-                  message: La parada 999 no existe
-                  details: { source: open_data }
+              $ref: '#/components/schemas/ErrorResponse'

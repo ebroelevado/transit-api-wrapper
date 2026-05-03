@@ -2,35 +2,43 @@ openapi: 3.1.0
 paths:
   /api/v1/stops:
     get:
+      operationId: searchStops
       tags: [Stops]
-      summary: Buscar paradas por nombre
+      summary: Búsqueda avanzada de paradas
       description: |
-        Realiza una búsqueda fuzzy (tolerante a errores tipográficos) en el índice de paradas de la red.
-        Si omites `q`, devolverá todas las paradas ordenadas alfabéticamente.
+        Accede al índice maestro de paradas del TUS. 
+        
+        ### Algoritmo Fuzzy Search
+        Este endpoint utiliza un algoritmo de **búsqueda difusa** (Fuse.js) que permite encontrar resultados incluso con errores tipográficos, falta de acentos o variaciones en el orden de las palabras (ej. "ayuntamiento pza" vs "Plaza Ayuntamiento").
+        
+        Si se omite el parámetro `q`, el sistema devuelve un volcado completo de todas las paradas activas, ideal para inicializar caches locales en aplicaciones móviles.
       parameters:
         - in: query
           name: q
           required: false
           schema:
             type: string
-          description: "Texto a buscar (ej. `ayuntamiento`, `valdecilla`). Insensible a mayúsculas y acentos."
+          example: "ayuntamiento"
+          description: "Término de búsqueda. Se ignoran mayúsculas y acentos."
         - in: query
           name: limit
           required: false
           schema:
             type: integer
             default: 50
-          description: Resultados máximos por página.
+          example: 10
+          description: Control de paginación (Cantidad de items).
         - in: query
           name: offset
           required: false
           schema:
             type: integer
             default: 0
-          description: Desplazamiento para paginación.
+          example: 0
+          description: Control de paginación (Desplazamiento).
       responses:
         200:
-          description: Resultados de la búsqueda
+          description: Listado de paradas encontradas.
           content:
             application/json:
               example:
@@ -48,13 +56,29 @@ paths:
                 source: "open_data"
               schema:
                 type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Stop'
+                  total:
+                    type: integer
+                  query:
+                    type: string
+                  source:
+                    type: string
 
   /api/v1/stops/nearby:
     get:
+      operationId: getNearbyStops
       tags: [Stops]
-      summary: Buscar paradas cercanas por coordenadas (Geolocalización)
+      summary: Geolocalización de paradas cercanas
       description: |
-        Dado un punto GPS (`lat`, `lng`), encuentra todas las paradas de autobús en un radio especificado usando cálculos espaciales (Haversine).
+        Encuentra paradas de autobús en las proximidades de una ubicación GPS específica. 
+        
+        Calcula la distancia real en metros utilizando la **fórmula de Haversine** (distancia de gran círculo). Es el endpoint ideal para la función "Paradas cerca de mí" en aplicaciones de usuario final.
+        
+        Los resultados se devuelven ordenados de **menor a mayor distancia**.
       parameters:
         - in: query
           name: lat
@@ -62,28 +86,32 @@ paths:
           schema:
             type: number
             format: float
-          description: "Latitud del usuario"
+          example: 43.4616
+          description: "Latitud WGS84 del punto de referencia."
         - in: query
           name: lng
           required: true
           schema:
             type: number
             format: float
-          description: "Longitud del usuario"
+          example: -3.8055
+          description: "Longitud WGS84 del punto de referencia."
         - in: query
           name: radius
           required: false
           schema:
             type: integer
             default: 500
-          description: "Radio de búsqueda en metros (máx 2000)."
+          example: 300
+          description: "Radio máximo de búsqueda en metros. El sistema capa este valor a un máximo de 2000m por rendimiento."
         - in: query
           name: limit
           required: false
           schema:
             type: integer
             default: 10
-          description: "Resultados máximos a devolver."
+          example: 5
+          description: "Cantidad máxima de paradas a devolver."
       responses:
         200:
           description: Paradas cercanas ordenadas por distancia.
@@ -104,23 +132,45 @@ paths:
                     distance_m: 12.5
               schema:
                 type: object
+                properties:
+                  center:
+                    $ref: '#/components/schemas/Coordinate'
+                  radius_m:
+                    type: integer
+                  total:
+                    type: integer
+                  results:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Stop'
+                        - type: object
+                          properties:
+                            distance_m:
+                              type: number
 
   /api/v1/stops/{stop}:
     get:
+      operationId: getStopDetail
       tags: [Stops]
-      summary: Detalle completo de una parada con líneas y paradas cercanas
+      summary: Ficha detallada de parada
       description: |
-        Devuelve el objeto profundo de una parada: coordenadas, líneas que la atraviesan (con sus colores corporativos para UI) y un pequeño índice de paradas adyacentes físicamente cercanas.
+        Obtiene toda la información estática disponible sobre una parada específica.
+        
+        Este endpoint enriquece los datos base con:
+        - **Información de Líneas**: Incluye el color corporativo de cada línea que pasa por la parada, facilitando la renderización de chips o badges en la UI.
+        - **Contexto Geoespacial**: Lista de paradas adyacentes físicamente cercanas.
       parameters:
         - in: path
           name: stop
           required: true
           schema:
             type: integer
-          description: ID numérico de la parada
+          example: 41
+          description: ID numérico de la parada.
       responses:
         200:
-          description: Detalle de la parada
+          description: Datos detallados de la parada.
           content:
             application/json:
               example:
@@ -140,14 +190,9 @@ paths:
                     name: "Correos"
                     meters: 150
               schema:
-                type: object
+                $ref: '#/components/schemas/Stop'
         404:
-          description: Stop not found
+          description: La parada solicitada no existe.
           content:
             application/json:
-              example:
-                success: false
-                error:
-                  code: STOP_NOT_FOUND
-                  message: La parada no existe
-                  details: { source: open_data }
+              $ref: '#/components/schemas/ErrorResponse'

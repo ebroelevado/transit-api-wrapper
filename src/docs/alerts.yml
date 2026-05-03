@@ -2,22 +2,46 @@ openapi: 3.1.0
 paths:
   /api/v1/alerts:
     get:
+      operationId: getAlerts
       tags: [Alerts]
-      summary: Alertas de servicio y avisos
+      summary: Estado del servicio e incidencias
       description: |
-        Cortes de tráfico programados, eventos especiales (ej. cabalgatas, maratones) o incidencias técnicas que afecten a la red.
-        Esencial para mostrar "banners" amarillos en el frontend cuando hay problemas serios.
+        Obtiene el listado de alertas oficiales emitidas por el TUS Santander. 
+        
+        Incluye información sobre:
+        - **Cortes de calle**: Manifestaciones, eventos deportivos o procesiones.
+        - **Obras**: Cambios temporales en la ubicación de paradas.
+        - **Avisos Generales**: Cambios de horario por festivos o servicios especiales.
+        
+        Cada alerta tiene un nivel de severidad y un periodo de validez.
       responses:
         200:
-          description: OK
+          description: Listado de alertas activas.
           content:
             application/json:
               example:
-                active_alerts:
-                  - id: "EV-102"
-                    title: "Corte en Paseo Pereda"
-                    description: "Debido a la maratón de la ciudad, de 10:00 a 14:00 las líneas 1, 2, 3 y 4 se desvían por el túnel de Tetuán."
+                alerts:
+                  - id: "2026-A1"
+                    title: "Desvío por Maratón de Santander"
+                    content: "Debido al maratón, las líneas LC, 1 y 2 se desviarán por el túnel de Tetuán."
                     severity: "high"
-                    affected_lines: ["1", "2", "3", "4"]
+                    type: "service_change"
+                    starts_at: "2026-05-10T08:00:00Z"
+                    ends_at: "2026-05-10T14:00:00Z"
+                total: 1
               schema:
                 type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        content: { type: string }
+                        severity: { type: string, enum: [low, medium, high] }
+                        type: { type: string }
+                        starts_at: { type: string, format: date-time }
+                        ends_at: { type: string, format: date-time, nullable: true }
+                  total: { type: integer }

@@ -2,17 +2,33 @@ openapi: 3.1.0
 paths:
   /api/v1/time:
     get:
+      operationId: getServerTime
       tags: [Time]
-      summary: Hora del servidor TUS
+      summary: Reloj maestro de la red TUS
       description: |
-        Sirve para sincronizar relojes del frontend y calcular *Estimated Time of Departure* (ETD) basándose en el reloj maestro de la red TUS.
+        Sincroniza tu aplicación con la hora oficial del sistema de transporte. 
+        
+        Este endpoint es crítico para:
+        1. **Cálculos de ETD**: Calcular con precisión cuántos segundos faltan para que un bus llegue.
+        2. **Sincronización**: Evitar discrepancias si el reloj del dispositivo del usuario está desajustado.
+        
+        La hora se devuelve en formato ISO 8601 con zona horaria de Madrid.
       responses:
         200:
-          description: OK
+          description: Hora actual del servidor.
           content:
             application/json:
               example:
-                server_time: "2026-05-03T20:30:00Z"
+                server_time: "2026-05-03T20:30:00.000Z"
                 timezone: "Europe/Madrid"
+                timestamp_ms: 1714768200000
               schema:
                 type: object
+                properties:
+                  server_time:
+                    type: string
+                    format: date-time
+                  timezone:
+                    type: string
+                  timestamp_ms:
+                    type: integer

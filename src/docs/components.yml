@@ -1,0 +1,142 @@
+openapi: 3.1.0
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "Invalid request parameters"
+            details:
+              type: array
+              items:
+                type: object
+              example: []
+
+    Stop:
+      type: object
+      properties:
+        stopId:
+          type: integer
+          description: Identificador numérico único de la parada en el sistema TUS.
+          example: 41
+        name:
+          type: string
+          description: Nombre descriptivo de la parada.
+          example: "Plaza Ayuntamiento"
+        lat:
+          type: number
+          format: float
+          description: Latitud en coordenadas WGS84.
+          example: 43.4616
+        lng:
+          type: number
+          format: float
+          description: Longitud en coordenadas WGS84.
+          example: -3.8055
+        address:
+          type: string
+          description: Dirección aproximada de la parada.
+          nullable: true
+          example: "Ayuntamiento de Santander"
+        sentido:
+          type: string
+          description: Destino principal hacia el que se dirigen los buses en este poste.
+          example: "Sardinero"
+        lines:
+          type: array
+          items:
+            type: string
+          example: ["1", "2", "LC"]
+        source:
+          type: string
+          enum: [open_data, legacy_api]
+          description: Indica si el dato proviene del catálogo Open Data o de la API de tiempo real.
+          example: "open_data"
+
+    Line:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identificador alfanumérico de la línea.
+          example: "LC"
+        name:
+          type: string
+          description: Nombre comercial de la línea.
+          example: "Línea Centro"
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Color HEX oficial para representación en mapas y UI.
+          example: "#00A650"
+        text_color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Color HEX recomendado para el texto sobre el fondo de la línea.
+          example: "#FFFFFF"
+        destinations:
+          type: array
+          items:
+            type: string
+          example: ["Estaciones", "Estaciones"]
+        stops:
+          type: integer
+          description: Número total de paradas únicas asociadas a esta línea.
+          example: 12
+        has_schedule:
+          type: boolean
+          description: Indica si existen horarios programados disponibles para esta línea.
+          example: true
+        active:
+          type: boolean
+          description: Estado actual de la línea en la red.
+          example: true
+
+    Arrival:
+      type: object
+      properties:
+        line:
+          type: string
+          description: ID de la línea del autobús entrante.
+          example: "LC"
+        destination:
+          type: string
+          description: Destino final del viaje.
+          example: "Intercambiador Sardinero"
+        estimate1:
+          type: integer
+          description: Tiempo estimado en minutos para el próximo autobús.
+          nullable: true
+          example: 2
+        estimate2:
+          type: integer
+          description: Tiempo estimado en minutos para el siguiente autobús (segundo en llegar).
+          nullable: true
+          example: 15
+        is_legacy:
+          type: boolean
+          description: Indica si los datos provienen de la API de tiempo real basada en GPS.
+          example: true
+
+    Coordinate:
+      type: object
+      properties:
+        lat:
+          type: number
+          format: float
+          example: 43.4616
+        lng:
+          type: number
+          format: float
+          example: -3.8055

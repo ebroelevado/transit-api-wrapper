@@ -1,45 +1,39 @@
 openapi: 3.1.0
 paths:
-  /api/v1/health:
+  /health:
     get:
+      operationId: checkHealth
       tags: [Core]
       summary: Healthcheck del sistema
       description: |
-        Comprueba que la API está online, así como el estado de caché del Open Data y otras dependencias críticas.
+        Verifica la salud operativa del wrapper y sus dependencias externas. 
+        
+        Este endpoint realiza un "ping" a los servicios upstream:
+        - **Open Data Santander**: Verifica si el catálogo está accesible.
+        - **Legacy API**: Comprueba si el motor de tiempo real responde.
+        - **Memoria/Cache**: Estado de los índices locales.
       responses:
         200:
-          description: Todo OK
+          description: El sistema está totalmente operativo.
           content:
             application/json:
               example:
-                status: "UP"
-                version: "2.1.0"
-                cache: { "stops": true, "lines": true }
+                status: "ok"
+                version: "3.0.0"
+                uptime: "2d 4h 12m"
+                services:
+                  open_data: "up"
+                  legacy_api: "up"
+                  cache: "healthy"
               schema:
                 type: object
-
-  /api/v1/discover:
-    get:
-      tags: [Core]
-      summary: HATEOAS Discovery
-      description: Devuelve la lista de endpoints disponibles en formato HATEOAS.
-      responses:
-        200:
-          description: Endpoints disponibles
-          content:
-            application/json:
-              schema:
-                type: object
-
-  /api/v1/dx/errors:
-    get:
-      tags: [DX]
-      summary: Simulador de errores
-      description: Lanza un error intencionado para que puedas testear tu UI manejando excepciones (ej. HTTP 500).
-      responses:
-        500:
-          description: Error simulado
-          content:
-            application/json:
-              schema:
-                type: object
+                properties:
+                  status: { type: string }
+                  version: { type: string }
+                  uptime: { type: string }
+                  services:
+                    type: object
+                    properties:
+                      open_data: { type: string }
+                      legacy_api: { type: string }
+                      cache: { type: string }

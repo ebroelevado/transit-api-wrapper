@@ -2,15 +2,19 @@ openapi: 3.1.0
 paths:
   /api/v1/lines:
     get:
+      operationId: getLines
       tags: [Core]
       summary: Catálogo completo de líneas de autobús
       description: |
-        Obtiene un listado completo de todas las líneas de autobús disponibles en la red del TUS.
+        Obtiene un listado exhaustivo de todas las líneas que operan actualmente en la red del TUS Santander.
         
-        La respuesta incluye metadatos visuales muy útiles como el \`color\` oficial de la línea (código HEX) y el \`text_color\` recomendado para que contraste (generalmente blanco o negro).
+        Cada objeto de línea incluye metadatos visuales cruciales para el desarrollo de interfaces:
+        - **Branding**: Colores oficiales en formato HEX (`color` y `text_color`).
+        - **Disponibilidad**: Indicadores de si la línea tiene horarios programados (`has_schedule`) o está activa en tiempo real.
+        - **Alcance**: Conteo total de paradas únicas.
       responses:
         200:
-          description: OK
+          description: Listado de líneas recuperado con éxito.
           content:
             application/json:
               example:
@@ -23,15 +27,7 @@ paths:
                     stops: 38
                     has_schedule: true
                     active: true
-                  - id: "LC"
-                    name: "Línea Centro"
-                    color: "#00A650"
-                    text_color: "#FFFFFF"
-                    destinations: ["Estaciones", "Estaciones"]
-                    stops: 12
-                    has_schedule: true
-                    active: true
-                total: 2
+                total: 1
                 updated: "2025-01-01T00:00:00.000Z"
               schema:
                 type: object
@@ -39,48 +35,35 @@ paths:
                   lines:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        name:
-                          type: string
-                        color:
-                          type: string
-                        text_color:
-                          type: string
-                        destinations:
-                          type: array
-                          items:
-                            type: string
-                        stops:
-                          type: number
-                        has_schedule:
-                          type: boolean
-                        active:
-                          type: boolean
+                      $ref: '#/components/schemas/Line'
                   total:
-                    type: number
+                    type: integer
                   updated:
                     type: string
                     format: date-time
 
   /api/v1/lines/{line}:
     get:
+      operationId: getLineDetail
       tags: [Core]
-      summary: Detalle de una línea específica
+      summary: Detalle profundo de una línea específica
       description: |
-        Devuelve información profunda sobre una única línea, incluyendo estadísticas de paradas (cuántas hay en cada dirección).
+        Devuelve información detallada sobre una única línea, ideal para vistas de "Detalle de Línea".
+        
+        A diferencia del catálogo general, este endpoint incluye:
+        - **Estadísticas de Paradas**: Desglose exacto de cuántas paradas hay por sentido (Ida vs Vuelta).
+        - **Mapping de Destinos**: Un objeto que mapea el ID del sentido con el nombre legible del destino final.
       parameters:
         - in: path
           name: line
           required: true
           schema:
             type: string
-          description: "ID de la línea (ej: `LC`, `1`, `N1`)"
+          example: "LC"
+          description: "Identificador alfanumérico de la línea (ej: `LC` para Línea Centro, `1`, `N1` para nocturnas)."
       responses:
         200:
-          description: OK
+          description: Detalle de la línea recuperado.
           content:
             application/json:
               example:
@@ -99,63 +82,33 @@ paths:
                 has_schedule: true
                 active: true
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                  name:
-                    type: string
-                  color:
-                    type: string
-                  text_color:
-                    type: string
-                  schedule_id:
-                    type: string
-                    nullable: true
-                  destinations:
-                    type: object
-                    properties:
-                      "1":
-                        type: string
-                      "2":
-                        type: string
-                  stats:
-                    type: object
-                    properties:
-                      stops_total:
-                        type: number
-                      stops_direction_1:
-                        type: number
-                      stops_direction_2:
-                        type: number
-                  has_schedule:
-                    type: boolean
-                  active:
-                    type: boolean
+                $ref: '#/components/schemas/Line'
         404:
-          description: La línea no existe
+          description: La línea especificada no existe en la base de datos.
           content:
             application/json:
-              example:
-                success: false
-                error:
-                  code: "LINE_NOT_FOUND"
-                  message: "Línea no encontrada"
+              $ref: '#/components/schemas/ErrorResponse'
 
   /api/v1/lines/{line}/route:
     get:
+      operationId: getLineRoute
       tags: [Core]
-      summary: Ruta completa de una línea con coordenadas GPS
+      summary: Trazado de ruta y coordenadas GPS
       description: |
-        Obtiene el listado secuencial de todas las paradas que componen una línea, con sus coordenadas `lat`/`lng`. 
-        Muy útil para trazar polilíneas en un mapa.
+        Obtiene la secuencia ordenada de paradas que componen el trayecto de una línea. 
+        
+        Este endpoint es fundamental para **renderizar polilíneas en un mapa**. Devuelve las coordenadas `lat` y `lng` de cada parada en orden secuencial.
+        
+        > [!TIP]
+        > Puedes filtrar por dirección para evitar que las líneas de ida y vuelta se solapen visualmente en tu implementación del mapa.
       parameters:
         - in: path
           name: line
           required: true
           schema:
             type: string
-          description: ID de la línea
+          example: "1"
+          description: ID de la línea a consultar.
         - in: query
           name: direction
           required: false
@@ -163,10 +116,10 @@ paths:
             type: string
             enum: [all, "1", "2"]
             default: all
-          description: "Filtro de dirección: `1` (Ida), `2` (Vuelta), o `all` (Ambas)"
+          description: "Filtro de dirección: `1` (Ida), `2` (Vuelta), o `all` (Trayecto completo)."
       responses:
         200:
-          description: OK
+          description: Trazado de la ruta recuperado.
           content:
             application/json:
               schema:
@@ -183,54 +136,44 @@ paths:
                       properties:
                         id:
                           type: string
+                          description: ID del sentido (1 o 2).
                         destination:
                           type: string
+                          description: Destino de este sentido.
                         stops:
                           type: array
                           items:
-                            type: object
-                            properties:
-                              stopId:
-                                type: number
-                              name:
-                                type: string
-                              lat:
-                                type: number
-                              lng:
-                                type: number
-                              sentido:
-                                type: string
-                                nullable: true
-                              lines:
-                                type: array
-                                items:
-                                  type: string
-                              source:
-                                type: string
+                            $ref: '#/components/schemas/Stop'
 
   /api/v1/lines/{lineA}/intersect/{lineB}:
     get:
+      operationId: getLineIntersection
       tags: [Compare]
-      summary: Paradas comunes entre dos líneas (Transbordos)
+      summary: Cálculo de transbordos (Intersección)
       description: |
-        Calcula la intersección matemática entre dos líneas.
-        Devuelve un array con los IDs de las paradas donde ambas líneas coinciden, ideal para sugerir transbordos.
+        Calcula qué paradas físicas son compartidas por dos líneas distintas. 
+        
+        Esta es una utilidad potente para **motores de búsqueda de rutas manuales** o para sugerir al usuario dónde cambiar de línea para llegar a su destino.
+        
+        La respuesta devuelve una lista de `stopIds` donde ambas líneas coinciden.
       parameters:
         - in: path
           name: lineA
           required: true
           schema:
             type: string
-          description: ID de la primera línea (ej. `LC`)
+          example: "LC"
+          description: Primera línea para la intersección.
         - in: path
           name: lineB
           required: true
           schema:
             type: string
-          description: ID de la segunda línea (ej. `1`)
+          example: "1"
+          description: Segunda línea para la intersección.
       responses:
         200:
-          description: OK
+          description: Intersección calculada con éxito.
           content:
             application/json:
               example:
@@ -248,6 +191,6 @@ paths:
                   common_stops:
                     type: array
                     items:
-                      type: number
+                      type: integer
                   total:
-                    type: number
+                    type: integer

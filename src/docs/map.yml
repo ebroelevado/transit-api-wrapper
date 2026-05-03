@@ -2,16 +2,23 @@ openapi: 3.1.0
 paths:
   /api/v1/map/stops.geojson:
     get:
+      operationId: getStopsGeoJSON
       tags: [Map]
-      summary: Mapa de paradas (GeoJSON)
+      summary: Capa de paradas (GeoJSON)
       description: |
-        Devuelve el catálogo entero de paradas pero codificado en formato estándar **GeoJSON** (`FeatureCollection`).
-        Ideal para inyectar directamente en Mapbox GL JS, Leaflet o Google Maps sin necesidad de transformar datos en cliente.
+        Genera un dataset geográfico de todas las paradas de la red en formato estándar **GeoJSON** (`FeatureCollection`).
+        
+        Este formato es directamente compatible con:
+        - **Mapbox GL JS / MapLibre**
+        - **Leaflet**
+        - **QGIS / Herramientas GIS**
+        
+        Cada `Feature` contiene en sus `properties` el `stopId`, `name` y las líneas que pasan por allí, lo que permite crear popups o estilos personalizados basados en datos sin lógica adicional en el frontend.
       responses:
         200:
-          description: Objeto GeoJSON válido.
+          description: FeatureCollection de paradas.
           content:
-            application/json:
+            application/geo+json:
               example:
                 type: "FeatureCollection"
                 features:
@@ -22,19 +29,29 @@ paths:
                     properties:
                       stopId: 41
                       name: "Plaza Ayuntamiento"
+                      lines: ["1", "LC"]
               schema:
                 type: object
+                properties:
+                  type: { type: string, example: "FeatureCollection" }
+                  features: { type: array, items: { type: object } }
 
   /api/v1/map/lines.geojson:
     get:
+      operationId: getLinesGeoJSON
       tags: [Map]
-      summary: Trazados de líneas (GeoJSON)
+      summary: Trazados vectoriales de líneas (GeoJSON)
       description: |
-        Devuelve las polilíneas (rutas geométricas) de las líneas de autobús en GeoJSON (`LineString` o `MultiLineString`).
+        Exporta las rutas geométricas de las líneas de autobús como objetos `LineString`. 
+        
+        Permite visualizar el recorrido exacto de los buses sobre el mapa urbano. Incluye propiedades de estilo como el color oficial de la línea para facilitar el renderizado de la capa.
       responses:
         200:
-          description: Objeto GeoJSON válido.
+          description: FeatureCollection de rutas.
           content:
-            application/json:
+            application/geo+json:
               schema:
                 type: object
+                properties:
+                  type: { type: string, example: "FeatureCollection" }
+                  features: { type: array, items: { type: object } }
