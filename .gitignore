@@ -2,4 +2,5 @@ node_modules/
 dist/
 .env
 *.log
-.opus
+.DS_Store
+.hermes/
