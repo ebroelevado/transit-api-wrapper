@@ -1,0 +1,14 @@
+# Nixpacks configuration for Transit API Wrapper
+# Dokploy → Select "Nixpacks" as build method
+
+[phases.setup]
+nixPkgs = ["nodejs", "npm"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node dist/index.js"
