@@ -22,6 +22,7 @@ export interface LineInfo {
   stats: { stops_total: number; stops_direction_1: number; stops_direction_2: number };
   has_schedule: boolean;
   active: boolean;
+  is_circular: boolean;
 }
 
 export interface Arrival {
