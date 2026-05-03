@@ -132,3 +132,26 @@ export function fetchStopSchedules(stopId: number, day: string) {
 
   return { stop: stopId, schedules: results, total: results.length, source: 'static' };
 }
+
+export function getNextDepartureFromOrigin(line: string, direction: string, day: string, fromMinutes: number): number | null {
+  const key = scheduleKey(line, direction);
+  if (!key) return null;
+
+  const schedules = loadSchedules().horarios_hardcoded;
+  const entry = schedules[key];
+
+  if (!entry || !entry[day] || entry[day].length === 0) return null;
+
+  const times = entry[day];
+  const normalizedFrom = fromMinutes < 240 ? fromMinutes + 1440 : fromMinutes;
+
+  for (const t of times) {
+    const tMin = timeToMinutes(t);
+    const normalizedT = tMin < 240 ? tMin + 1440 : tMin;
+    if (normalizedT >= normalizedFrom) {
+      return normalizedT;
+    }
+  }
+
+  return null;
+}

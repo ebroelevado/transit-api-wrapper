@@ -103,16 +103,19 @@ async function startServer() {
   // Connect to Redis
   await connectRedis();
 
+  // Pre-warm critical cache BEFORE listening
+  try {
+    await lineIndex.ensureLineIndex();
+    logger.info({ lines: lineIndex.getLines().length }, '[server] Line index ready');
+  } catch (err) {
+    logger.warn({ err }, '[server] Could not build line index');
+  }
+
   if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, '0.0.0.0', () => {
       logger.info({ port: PORT }, `[server] Listening on http://0.0.0.0:${PORT}`);
     });
   }
-
-  // Pre-warm caches in background (non-blocking)
-  lineIndex.ensureLineIndex()
-    .then(() => logger.info({ lines: lineIndex.getLines().length }, '[server] Line index ready'))
-    .catch((err: Error) => logger.warn({ err }, '[server] Could not build line index'));
   
   // Start background refresh
   lineIndex.startBackgroundRefresh();

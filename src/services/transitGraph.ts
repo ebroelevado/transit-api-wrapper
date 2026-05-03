@@ -1,10 +1,12 @@
 import { LineInfo } from '../types';
 import { stopCoordsCache } from '../sources/lineIndex';
 import { BUS_SPEED_KMH, TRANSFER_PENALTY_MIN } from '../config';
+import { getNextDepartureFromOrigin } from './schedules.service';
+import { MinHeap } from '../utils/MinHeap';
 
-interface Edge {
+export interface Edge {
   to: number;
-  line: string;
+  line: string | 'walk';
   line_name: string;
   color: string;
   dir: string;
@@ -12,12 +14,13 @@ interface Edge {
   distance: number;    // meters
 }
 
-interface GraphNode {
+export interface GraphNode {
   stopId: number;
   edges: Edge[];
 }
 
 const graph: Map<number, GraphNode> = new Map();
+const timeFromOriginCache: Map<string, number> = new Map();
 
 // Helper: Haversine distance in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -34,50 +37,73 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 export function buildGraph(catalog: Map<string, LineInfo>): void {
   graph.clear();
+  timeFromOriginCache.clear();
   let edgesAdded = 0;
 
   for (const [lineId, line] of catalog) {
     for (const [dir, direction] of Object.entries(line.directions)) {
       const stops = direction.stops;
-      for (let i = 0; i < stops.length - 1; i++) {
-        const fromStop = stops[i];
-        const toStop = stops[i + 1];
-
-        // Ensure nodes exist
-        if (!graph.has(fromStop)) graph.set(fromStop, { stopId: fromStop, edges: [] });
-        if (!graph.has(toStop)) graph.set(toStop, { stopId: toStop, edges: [] });
-
-        const fromCoords = stopCoordsCache.get(fromStop);
-        const toCoords = stopCoordsCache.get(toStop);
-
-        // Fallback distance: 300 meters if coords not found
-        const distance = (fromCoords && toCoords)
-          ? haversineDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
-          : 300;
-
-        // Weight = travel time in minutes based on BUS_SPEED_KMH
-        let weight = (distance / 1000) / BUS_SPEED_KMH * 60;
+      let accumulatedTime = 0;
+      
+      for (let i = 0; i < stops.length; i++) {
+        const stopId = stops[i];
+        if (!graph.has(stopId)) graph.set(stopId, { stopId, edges: [] });
         
-        // At least 0.5 mins to account for acceleration/deceleration/dwell time
-        if (weight < 0.5) weight = 0.5;
+        // Save accumulated time from origin for this line-dir-stop
+        timeFromOriginCache.set(`${lineId}-${dir}-${stopId}`, accumulatedTime);
 
-        graph.get(fromStop)!.edges.push({
-          to: toStop,
-          line: lineId,
-          line_name: line.name,
-          color: line.color,
-          dir,
-          weight,
-          distance,
-        });
-        edgesAdded++;
+        if (i < stops.length - 1) {
+          const nextStop = stops[i + 1];
+          if (!graph.has(nextStop)) graph.set(nextStop, { stopId: nextStop, edges: [] });
+
+          const fromCoords = stopCoordsCache.get(stopId);
+          const toCoords = stopCoordsCache.get(nextStop);
+          const distance = (fromCoords && toCoords)
+            ? haversineDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
+            : 300;
+
+          let weight = (distance / 1000) / BUS_SPEED_KMH * 60;
+          if (weight < 0.5) weight = 0.5;
+
+          graph.get(stopId)!.edges.push({
+            to: nextStop,
+            line: lineId,
+            line_name: line.name,
+            color: line.color,
+            dir,
+            weight,
+            distance,
+          });
+          edgesAdded++;
+          accumulatedTime += weight;
+        }
       }
     }
   }
 
-  // We do NOT add explicit transfer edges. 
-  // Transfers will be handled organically by Dijkstra penalizing a change in the `line` attribute.
-  console.log(`[transitGraph] Built graph with ${graph.size} nodes and ${edgesAdded} edges.`);
+  // Generate walking edges between nearby stops (max 300m)
+  const stopIds = Array.from(graph.keys());
+  let walkingEdges = 0;
+  for (let i = 0; i < stopIds.length; i++) {
+    for (let j = i + 1; j < stopIds.length; j++) {
+      const s1 = stopIds[i];
+      const s2 = stopIds[j];
+      const c1 = stopCoordsCache.get(s1);
+      const c2 = stopCoordsCache.get(s2);
+      if (c1 && c2) {
+        const dist = haversineDistance(c1.lat, c1.lng, c2.lat, c2.lng);
+        if (dist <= 300) {
+          // Walk time: 5 km/h = ~83.3 meters/min
+          const walkTime = dist / (5000 / 60); 
+          graph.get(s1)!.edges.push({ to: s2, line: 'walk', line_name: 'Caminar', color: '#999', dir: '', weight: walkTime, distance: dist });
+          graph.get(s2)!.edges.push({ to: s1, line: 'walk', line_name: 'Caminar', color: '#999', dir: '', weight: walkTime, distance: dist });
+          walkingEdges += 2;
+        }
+      }
+    }
+  }
+
+  console.log(`[transitGraph] Built graph with ${graph.size} nodes, ${edgesAdded} line edges, and ${walkingEdges} walk edges.`);
 }
 
 export interface TripLeg {
@@ -100,15 +126,15 @@ export interface OptimalTripOption {
   legs: TripLeg[];
 }
 
-// State for Priority Queue
 interface DijkstraState {
   stopId: number;
-  totalWeight: number;
+  totalWeight: number; // accumulated time
   currentLine: string | null;
   transfers: number;
   path: {
     edge: Edge | null;
     fromStop: number;
+    waitTime: number; // dynamically calculated wait time
   }[];
 }
 
@@ -116,15 +142,16 @@ export function findOptimalRoute(
   fromStop: number,
   toStop: number,
   fromCoords?: { lat: number; lng: number },
-  toCoords?: { lat: number; lng: number }
+  toCoords?: { lat: number; lng: number },
+  departureTimeMinutes?: number,
+  dayType: string = 'weekday'
 ): OptimalTripOption | null {
   if (!graph.has(fromStop) || !graph.has(toStop)) return null;
 
-  const maxTransfers = 2; // Maximum allowed transfers to prevent crazy zig-zag routes
+  const maxTransfers = 2;
   
-  // Custom simple Priority Queue (min-heap)
-  const queue: DijkstraState[] = [];
-  queue.push({
+  const queue = new MinHeap<DijkstraState>();
+  queue.push(0, {
     stopId: fromStop,
     totalWeight: 0,
     currentLine: null,
@@ -132,23 +159,12 @@ export function findOptimalRoute(
     path: []
   });
 
-  // Track minimum weight to reach a node with a specific line, to prune sub-optimal paths
-  // Map key: `${stopId}-${lineId}` -> minimum weight
   const minWeight = new Map<string, number>();
-
   let bestFinalState: DijkstraState | null = null;
 
   while (queue.length > 0) {
-    // Extract min (inefficient for large graphs, but OK for Santander size ~500 nodes)
-    let minIdx = 0;
-    for (let i = 1; i < queue.length; i++) {
-      if (queue[i].totalWeight < queue[minIdx].totalWeight) {
-        minIdx = i;
-      }
-    }
-    const current = queue.splice(minIdx, 1)[0];
+    const current = queue.pop()!;
 
-    // Did we reach the destination?
     if (current.stopId === toStop) {
       if (!bestFinalState || current.totalWeight < bestFinalState.totalWeight) {
         bestFinalState = current;
@@ -159,16 +175,38 @@ export function findOptimalRoute(
     const node = graph.get(current.stopId)!;
 
     for (const edge of node.edges) {
-      // Are we changing lines?
-      const isTransfer = current.currentLine !== null && current.currentLine !== edge.line;
+      const isWalk = edge.line === 'walk';
+      const isTransfer = current.currentLine !== null && current.currentLine !== edge.line && !isWalk;
+      const isFirstBoarding = current.currentLine === null && !isWalk;
+      
       const newTransfers = current.transfers + (isTransfer ? 1 : 0);
-
-      // Prune if too many transfers
       if (newTransfers > maxTransfers) continue;
 
+      let waitTime = 0;
       let newWeight = current.totalWeight + edge.weight;
-      if (isTransfer) {
-        newWeight += TRANSFER_PENALTY_MIN; // Transfer penalty
+
+      // Dynamic schedule penalty logic
+      if ((isTransfer || isFirstBoarding) && departureTimeMinutes !== undefined) {
+        // Calculate wait time
+        const absoluteCurrentTime = departureTimeMinutes + current.totalWeight + (isTransfer ? TRANSFER_PENALTY_MIN : 0);
+        const tFromOrigin = timeFromOriginCache.get(`${edge.line}-${edge.dir}-${current.stopId}`) || 0;
+        
+        const neededDeparture = absoluteCurrentTime - tFromOrigin;
+        
+        const nextDep = getNextDepartureFromOrigin(edge.line, edge.dir, dayType, neededDeparture);
+        if (nextDep !== null) {
+          const busArrivesAtStop = nextDep + tFromOrigin;
+          waitTime = Math.max(0, busArrivesAtStop - absoluteCurrentTime);
+        } else {
+          // No more buses today
+          continue; 
+        }
+        
+        newWeight += waitTime;
+        if (isTransfer) newWeight += TRANSFER_PENALTY_MIN;
+      } else if (isTransfer) {
+        // Fallback static penalty
+        newWeight += TRANSFER_PENALTY_MIN;
       }
 
       const stateKey = `${edge.to}-${edge.line}`;
@@ -176,12 +214,12 @@ export function findOptimalRoute(
 
       if (newWeight < bestKnownWeight) {
         minWeight.set(stateKey, newWeight);
-        queue.push({
+        queue.push(newWeight, {
           stopId: edge.to,
           totalWeight: newWeight,
           currentLine: edge.line,
           transfers: newTransfers,
-          path: [...current.path, { edge, fromStop: current.stopId }]
+          path: [...current.path, { edge, fromStop: current.stopId, waitTime }]
         });
       }
     }
@@ -189,15 +227,12 @@ export function findOptimalRoute(
 
   if (!bestFinalState) return null;
 
-  // Reconstruct path into Legs
+  // Reconstruct path
   const legs: TripLeg[] = [];
   let currentLeg: TripLeg | null = null;
 
-  // Helper to populate stop coords safely
   const getStopData = (id: number) => {
     const coords = stopCoordsCache.get(id);
-    // name is fetched at the controller level later, or we can use stopNameCache if we import it.
-    // We'll leave name empty here, TripService will fill it.
     return { stopId: id, name: '', lat: coords?.lat || 0, lng: coords?.lng || 0 };
   };
 
@@ -205,7 +240,6 @@ export function findOptimalRoute(
     if (!step.edge) continue;
 
     if (!currentLeg || currentLeg.line !== step.edge.line) {
-      // Start new leg
       if (currentLeg) legs.push(currentLeg);
       const fromD = getStopData(step.fromStop);
       currentLeg = {
@@ -214,43 +248,50 @@ export function findOptimalRoute(
         color: step.edge.color,
         direction: step.edge.dir,
         from_stop: fromD,
-        to_stop: getStopData(step.edge.to), // Will be updated as we step
+        to_stop: getStopData(step.edge.to),
         intermediate_stops: 0,
-        estimated_min: step.edge.weight,
+        estimated_min: step.edge.weight + step.waitTime,
         distance_m: step.edge.distance,
         geometry: [[fromD.lng, fromD.lat]],
       };
     } else {
-      // Continue existing leg
       currentLeg.intermediate_stops++;
       currentLeg.estimated_min += step.edge.weight;
       currentLeg.distance_m += step.edge.distance;
     }
     
-    // Update to_stop and geometry
     currentLeg.to_stop = getStopData(step.edge.to);
     currentLeg.geometry.push([currentLeg.to_stop.lng, currentLeg.to_stop.lat]);
   }
 
   if (currentLeg) legs.push(currentLeg);
 
-  // Walk distance calculation (from origin to first stop, last stop to destination)
   let walk_distance_m = 0;
+  for (const leg of legs) {
+    if (leg.line === 'walk') {
+      walk_distance_m += leg.distance_m;
+    }
+  }
+
+  let origin_dest_walk_time = 0;
   if (fromCoords && legs.length > 0) {
     const firstLeg = legs[0];
-    walk_distance_m += haversineDistance(fromCoords.lat, fromCoords.lng, firstLeg.from_stop.lat, firstLeg.from_stop.lng);
+    const d = haversineDistance(fromCoords.lat, fromCoords.lng, firstLeg.from_stop.lat, firstLeg.from_stop.lng);
+    walk_distance_m += d;
+    origin_dest_walk_time += d / 83;
   }
   if (toCoords && legs.length > 0) {
     const lastLeg = legs[legs.length - 1];
-    walk_distance_m += haversineDistance(lastLeg.to_stop.lat, lastLeg.to_stop.lng, toCoords.lat, toCoords.lng);
+    const d = haversineDistance(lastLeg.to_stop.lat, lastLeg.to_stop.lng, toCoords.lat, toCoords.lng);
+    walk_distance_m += d;
+    origin_dest_walk_time += d / 83;
   }
 
-  // Walk time estimation (assuming 5 km/h = ~83 m/min)
-  const walk_time_min = walk_distance_m / 83;
+  const busLegsCount = legs.filter(l => l.line !== 'walk').length;
 
   return {
-    type: legs.length > 1 ? 'transfer' : 'direct',
-    estimated_total_min: Math.ceil(bestFinalState.totalWeight + walk_time_min),
+    type: busLegsCount > 1 ? 'transfer' : 'direct',
+    estimated_total_min: Math.ceil(bestFinalState.totalWeight + origin_dest_walk_time),
     walk_distance_m: Math.round(walk_distance_m),
     legs
   };

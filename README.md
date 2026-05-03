@@ -25,7 +25,9 @@ Una API REST diseñada con enfoque **DX-First** (Developer Experience). Envuelve
 - 🚦 **Rate Limiting Global**: Protección nativa contra abusos (500 reqs/5min) con límites ajustados para endpoints pesados.
 - ⚡ **Rendimiento y Tolerancia a Fallos**: Caché L2 en **Redis** para persistir el catálogo de líneas y topología de red. Si Redis cae, se usan cachés en memoria local (Cold Starts).
 - 🗺️ **Formatos Estándar**: Soporte nativo para GeoJSON en rutas y polilíneas para integrar mapas sin fricción en el frontend.
-- 🧭 **Algoritmo de Rutas Eficiente**: Algoritmo Dijkstra interno ejecutado sobre un grafo precalculado para ofrecer transbordos y viajes directos óptimos.
+- 🧭 **Algoritmo de Rutas de Alto Rendimiento**: Motor Dijkstra rediseñado con **MinHeap (Priority Queue)** para una complejidad $O(E \log V)$.
+- 🕒 **Routing Dependiente del Tiempo**: Los transbordos no son estáticos; la API consulta los **Schedules reales** para calcular esperas precisas basándose en la próxima salida programada.
+- 🚶 **Conexiones Peatonales**: Generación dinámica de *Walking Edges* entre paradas cercanas (<300m) para optimizar transbordos a pie.
 - 🧪 **100% Tested**: Suite integral con 178 tests (Unitarios + Integración E2E mediante Supertest) asegurando calidad de grado de producción.
 
 ---

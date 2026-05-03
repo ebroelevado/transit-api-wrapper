@@ -1,5 +1,5 @@
 import { ensureLineIndex } from '../sources/lineIndex';
-import { resolveStop } from '../utils/helpers';
+import { resolveStop, timeToMinutes, currentTimeStr } from '../utils/helpers';
 import { findOptimalRoute, OptimalTripOption } from './transitGraph';
 import logger from '../utils/logger';
 
@@ -13,7 +13,11 @@ export async function buildTripOptions(fromStopId: number, toStopId: number): Pr
   const fromCoords = fromStop ? { lat: fromStop.lat, lng: fromStop.lng } : undefined;
   const toCoords = toStop ? { lat: toStop.lat, lng: toStop.lng } : undefined;
 
-  const optimalRoute = findOptimalRoute(fromStopId, toStopId, fromCoords, toCoords);
+  const nowMinutes = timeToMinutes(currentTimeStr());
+  // For simplicity, assuming 'weekday'. In a complete implementation, this should be deduced from the Date.
+  const dayType = 'weekday'; 
+
+  const optimalRoute = findOptimalRoute(fromStopId, toStopId, fromCoords, toCoords, nowMinutes, dayType);
 
   if (!optimalRoute) {
     logger.debug(`[trip.service] No route found between ${fromStopId} and ${toStopId}`);
