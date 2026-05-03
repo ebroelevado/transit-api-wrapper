@@ -5,6 +5,7 @@ import * as lineIndex from './sources/lineIndex';
 import { globalLimiter, strictLimiter } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
 import logger from './utils/logger';
+import { errorHandler } from './middleware/errorHandler';
 
 // ── Global crash handlers ───────────────────────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
@@ -29,7 +30,6 @@ import batchRouter from './routes/batch';
 import compareRouter from './routes/compare';
 import timeRouter from './routes/time';
 import faresRouter from './routes/fares';
-import schedulesRouter from './routes/schedules';
 import alertsRouter from './routes/alerts';
 import dxRouter from './routes/dx';
 
@@ -62,8 +62,6 @@ app.use('/api/v1/batch', batchRouter);    // POST /api/v1/batch/arrivals, /batch
 app.use('/api/v1/compare', compareRouter); // POST /api/v1/compare/lines
 app.use('/api/v1', timeRouter);           // GET /api/v1/now, /stops/:stop/etd, /stops/:stop/arrivals/absolute
 app.use('/api/v1/fares', faresRouter);    // GET /api/v1/fares, /fares/:id, /fares/compare, /fares/calculator
-app.use('/api/v1/schedule', schedulesRouter); // GET /api/v1/schedule/lines/:line, /schedule/lines/:line/next, /schedule/stops/:stop
-app.use('/api/v1/schedules', (_req: Request, res: Response) => res.redirect(301, '/api/v1/schedule'));
 app.use('/api/v1', alertsRouter);         // GET /api/v1/alerts, /lines/:line/status
 app.use('/', dxRouter);                   // OPTIONS /api/v1, GET /dx/info
 
@@ -78,15 +76,7 @@ app.use((_req: Request, res: Response) => {
 });
 
 // ── Global error handler ────────────────────────────────────────────
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error({ err }, '[error] Unhandled Express error');
-  res.status(500).json({
-    error: 'internal_error',
-    message: err.message || 'Unexpected internal error',
-    source: 'internal',
-    timestamp: new Date().toISOString(),
-  });
-});
+app.use(errorHandler);
 
 // ── Startup ─────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {

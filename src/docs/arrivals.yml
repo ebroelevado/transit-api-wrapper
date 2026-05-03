@@ -1,0 +1,67 @@
+openapi: 3.0.0
+paths:
+  /api/v1/stops/{stop}/arrivals:
+    get:
+      tags: [Arrivals]
+      summary: Obtener estimaciones de llegada a una parada en tiempo real
+      parameters:
+        - in: path
+          name: stop
+          required: true
+          schema:
+            type: integer
+          description: "ID de la parada"
+        - in: query
+          name: line
+          schema:
+            type: string
+          description: "Filtrar por línea (opcional)"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: "Número máximo de resultados a devolver (opcional)"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stop:
+                    type: object
+                    properties:
+                      stopId:
+                        type: integer
+                      name:
+                        type: string
+                  arrivals:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        line:
+                          type: string
+                        destination:
+                          type: string
+                        estimate1:
+                          type: integer
+                          nullable: true
+                        estimate2:
+                          type: integer
+                          nullable: true
+                        is_legacy:
+                          type: boolean
+                  summary:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      source:
+                        type: string
+                      cached:
+                        type: boolean
+                      timestamp:
+                        type: string
+                        format: date-time

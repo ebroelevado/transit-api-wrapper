@@ -1,6 +1,6 @@
 openapi: 3.0.0
 paths:
-  /api/v1/schedule/lines/{line}:
+  /api/v1/lines/{line}/schedules:
     get:
       tags: [Schedules]
       summary: Horarios programados de una línea
@@ -14,14 +14,21 @@ paths:
           name: day
           schema:
             type: string
-            default: L
-          description: "L/S/F"
+            enum: [weekday, saturday, holiday]
+            default: weekday
+          description: "Día de la semana (weekday, saturday, holiday)"
         - in: query
           name: direction
           schema:
             type: string
-            default: "1"
-          description: "1/2"
+            enum: [forward, backward]
+            default: forward
+          description: "Dirección de la línea (forward, backward)"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: "Límite de resultados a mostrar"
       responses:
         200:
           description: OK
@@ -54,35 +61,7 @@ paths:
                   source:
                     type: string
 
-  /api/v1/schedule/lines/{line}/next:
-    get:
-      tags: [Schedules]
-      summary: Próximo horario programado desde ahora
-      parameters:
-        - in: path
-          name: line
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: day
-          schema:
-            type: string
-            default: L
-        - in: query
-          name: direction
-          schema:
-            type: string
-            default: "1"
-      responses:
-        200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-
-  /api/v1/schedule/stops/{stop}:
+  /api/v1/stops/{stop}/schedules:
     get:
       tags: [Schedules]
       summary: Horarios de todas las líneas en esta parada
@@ -92,6 +71,13 @@ paths:
           required: true
           schema:
             type: integer
+        - in: query
+          name: day
+          schema:
+            type: string
+            enum: [weekday, saturday, holiday]
+            default: weekday
+          description: "Día de la semana (weekday, saturday, holiday)"
       responses:
         200:
           description: OK
