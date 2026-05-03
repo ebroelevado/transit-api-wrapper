@@ -32,6 +32,55 @@ async function resolveStop(stopId: number): Promise<Stop | null> {
 // ─── GET /api/v1/trip?from=X&to=Y ──────────────────────────────────
 // Find direct/transfer routes by intersecting line stops arrays
 
+/**
+ * @swagger
+ * /api/v1/trip:
+ *   get:
+ *     tags: [Trip]
+ *     summary: Planificar viaje entre dos paradas (directo y transbordo)
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: to
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 from:
+ *                   type: object
+ *                 to:
+ *                   type: object
+ *                 options:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       type:
+ *                         type: string
+ *                         enum: [direct, transfer]
+ *                       line:
+ *                         type: string
+ *                       color:
+ *                         type: string
+ *                       stops:
+ *                         type: integer
+ *                       direction:
+ *                         type: string
+ *                       duration_min:
+ *                         type: integer
+ *                         nullable: true
+ */
 router.get('/trip', async (req: Request, res: Response) => {
   try {
     const fromId = parseInt(req.query.from as string, 10);
@@ -169,6 +218,26 @@ router.get('/trip', async (req: Request, res: Response) => {
 // ─── GET /api/v1/stops/:stop/connections ───────────────────────────
 // All reachable stops from this stop (without transfer)
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/connections:
+ *   get:
+ *     tags: [Trip]
+ *     summary: Paradas alcanzables sin transbordo desde esta parada
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops/:stop/connections', async (req: Request, res: Response) => {
   try {
     const stopId = parseInt(req.params.stop as string, 10);

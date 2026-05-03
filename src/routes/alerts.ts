@@ -41,6 +41,20 @@ function currentTimeStr(): string {
 
 // ─── GET /api/v1/alerts ─────────────────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/alerts:
+ *   get:
+ *     tags: [Alerts]
+ *     summary: Alertas activas del servicio TUS
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/alerts', (_req: Request, res: Response) => {
   res.json({
     alerts: [],
@@ -51,6 +65,26 @@ router.get('/alerts', (_req: Request, res: Response) => {
 
 // ─── GET /api/v1/lines/:line/status ─────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/lines/{line}/status:
+ *   get:
+ *     tags: [Alerts]
+ *     summary: "Estado operativo de una línea: activa, frecuencia, próximos buses"
+ *     parameters:
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/lines/:line/status', async (req: Request, res: Response) => {
   const lineId = req.params.line as string;
 

@@ -48,6 +48,20 @@ function formatLocalTime(d: Date): string {
 
 // ─── GET /api/v1/now ────────────────────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/now:
+ *   get:
+ *     tags: [Time]
+ *     summary: Hora actual del servidor con timezone Europe/Madrid
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/now', (_req: Request, res: Response) => {
   const now = new Date();
   res.json({
@@ -59,6 +73,26 @@ router.get('/now', (_req: Request, res: Response) => {
 
 // ─── GET /api/v1/stops/:stop/etd ────────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/etd:
+ *   get:
+ *     tags: [Time]
+ *     summary: Hora estimada de salida (ETD) en ISO 8601
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops/:stop/etd', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);
@@ -120,6 +154,26 @@ router.get('/stops/:stop/etd', async (req: Request, res: Response) => {
 
 // ─── GET /api/v1/stops/:stop/arrivals/absolute ──────────────────────
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/arrivals/absolute:
+ *   get:
+ *     tags: [Time]
+ *     summary: Llegadas con hora exacta (alias de ETD)
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops/:stop/arrivals/absolute', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);

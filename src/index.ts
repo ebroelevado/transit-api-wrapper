@@ -12,6 +12,9 @@ process.on('uncaughtException', (err) => {
 });
 
 // ── Route imports ───────────────────────────────────────────────────
+import swaggerUi from 'swagger-ui-express';
+const swaggerUiAny: any = swaggerUi;
+import { swaggerSpec } from './swagger';
 import healthRouter from './routes/health';
 import discoverRouter from './routes/discover';
 import linesRouter from './routes/lines';
@@ -34,6 +37,13 @@ app.use(cors());
 app.use(express.json());
 
 // ── Mount routers ───────────────────────────────────────────────────
+// Swagger docs
+app.use('/api/v1/docs', swaggerUiAny.serve, swaggerUiAny.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { background-color: #1a1a2e; }',
+  customSiteTitle: 'TUS Santander API Docs',
+}));
+app.use('/api/v1/docs.json', (_req, res) => res.json(swaggerSpec));
+
 // Order matters: more specific paths should come before generic ones
 // Health is first so it always works
 app.use('/api/v1', healthRouter);         // GET /api/v1/health

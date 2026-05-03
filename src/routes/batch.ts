@@ -52,6 +52,35 @@ async function withConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): P
 // Body: { stops: number[], lines?: string[] }
 // Parallel getArrivals calls (max BATCH_CONCURRENCY concurrent)
 
+/**
+ * @swagger
+ * /api/v1/batch/arrivals:
+ *   post:
+ *     tags: [Batch]
+ *     summary: Llegadas de varias paradas en paralelo (máx 5 concurrentes)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stops:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               lines:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.post('/arrivals', async (req: Request, res: Response) => {
   try {
     const { stops, lines } = req.body as { stops?: number[]; lines?: string[] };
@@ -124,6 +153,31 @@ router.post('/arrivals', async (req: Request, res: Response) => {
 // Body: { stops: number[] }
 // Lookup stops (Open Data + stops.min.json fallback)
 
+/**
+ * @swagger
+ * /api/v1/batch/stops:
+ *   post:
+ *     tags: [Batch]
+ *     summary: Información de varias paradas
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stops:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.post('/stops', async (req: Request, res: Response) => {
   try {
     const { stops } = req.body as { stops?: number[] };
@@ -156,6 +210,31 @@ router.post('/stops', async (req: Request, res: Response) => {
 // Body: { lines: string[] }
 // Lookup lines from lineIndex
 
+/**
+ * @swagger
+ * /api/v1/batch/lines:
+ *   post:
+ *     tags: [Batch]
+ *     summary: Información de varias líneas
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               lines:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.post('/lines', async (req: Request, res: Response) => {
   try {
     const { lines } = req.body as { lines?: string[] };

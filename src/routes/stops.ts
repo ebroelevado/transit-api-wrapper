@@ -20,6 +20,80 @@ async function resolveStop(stopId: number): Promise<Stop | null> {
   return null;
 }
 
+/**
+ * @swagger
+ * /api/v1/stops:
+ *   get:
+ *     tags: [Stops]
+ *     summary: Buscar paradas por nombre
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Texto a buscar en nombre de parada
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Resultados por página
+ *       - in: query
+ *         name: offset
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset de paginación
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       stopId:
+ *                         type: number
+ *                       name:
+ *                         type: string
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                       address:
+ *                         type: string
+ *                         nullable: true
+ *                       sentido:
+ *                         type: string
+ *                         nullable: true
+ *                       lines:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                       source:
+ *                         type: string
+ *                 total:
+ *                   type: number
+ *                 query:
+ *                   type: string
+ *                   nullable: true
+ *                 source:
+ *                   type: string
+ *       500:
+ *         description: Internal error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops', async (req: Request, res: Response) => {
   try {
     const q = req.query.q as string | undefined;
@@ -46,6 +120,87 @@ router.get('/stops', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}:
+ *   get:
+ *     tags: [Stops]
+ *     summary: Detalle completo de una parada con líneas y paradas cercanas
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *         example: 41
+ *     responses:
+ *       200:
+ *         description: OK — Detalle de la parada (ej: stopId=41 → "Plaza Ayuntamiento")
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 stopId:
+ *                   type: number
+ *                 name:
+ *                   type: string
+ *                 lat:
+ *                   type: number
+ *                 lng:
+ *                   type: number
+ *                 address:
+ *                   type: string
+ *                   nullable: true
+ *                 sentido:
+ *                   type: string
+ *                   nullable: true
+ *                 source:
+ *                   type: string
+ *                 lines:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       color:
+ *                         type: string
+ *                       destinations:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                 nearby:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       stopId:
+ *                         type: number
+ *                       name:
+ *                         type: string
+ *                       meters:
+ *                         type: number
+ *       404:
+ *         description: Stop not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: stop_not_found
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Internal error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops/:stop', async (req: Request, res: Response) => {
   try {
     const stopId = parseInt(req.params.stop as string);

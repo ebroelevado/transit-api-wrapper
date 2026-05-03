@@ -7,6 +7,31 @@ const router = Router();
 // Body: { lines: string[] }
 // Returns side-by-side comparison and common stops
 
+/**
+ * @swagger
+ * /api/v1/compare/lines:
+ *   post:
+ *     tags: [Compare]
+ *     summary: Comparar líneas lado a lado con paradas comunes
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               lines:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.post('/lines', async (req: Request, res: Response) => {
   try {
     const { lines } = req.body as { lines?: string[] };

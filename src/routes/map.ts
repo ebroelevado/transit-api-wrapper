@@ -32,6 +32,20 @@ async function resolveStop(stopId: number): Promise<Stop | null> {
 // ─── GET /api/v1/map/stops ─────────────────────────────────────────
 // Compact format: { stops:[[stopId,lat,lng,name],...], total, source:'open_data' }
 
+/**
+ * @swagger
+ * /api/v1/map/stops:
+ *   get:
+ *     tags: [Map]
+ *     summary: 462 paradas en formato compacto [id,lat,lng,name]
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops', async (_req: Request, res: Response) => {
   try {
     const stops = await getStops();

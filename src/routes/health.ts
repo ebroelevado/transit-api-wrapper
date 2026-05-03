@@ -11,6 +11,84 @@ const startTime = Date.now();
 
 const staticFiles = ['stops.min.json', 'colors.json', 'cards.json', 'schedules.json'];
 
+/**
+ * @swagger
+ * /api/v1/health:
+ *   get:
+ *     tags: [Core]
+ *     summary: Health check del wrapper y fuentes de datos
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   enum: [ok, degraded]
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 uptime_seconds:
+ *                   type: number
+ *                 sources:
+ *                   type: object
+ *                   properties:
+ *                     open_data:
+ *                       type: object
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           enum: [ok, unavailable]
+ *                         stops_cached:
+ *                           type: number
+ *                         age_seconds:
+ *                           type: number
+ *                     legacy_api:
+ *                       type: object
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           enum: [ok, unavailable]
+ *                         latency_ms:
+ *                           type: number
+ *                           nullable: true
+ *                 cache:
+ *                   type: object
+ *                   properties:
+ *                     stops:
+ *                       type: object
+ *                       properties:
+ *                         loaded:
+ *                           type: boolean
+ *                         count:
+ *                           type: number
+ *                         source:
+ *                           type: string
+ *                     lines:
+ *                       type: object
+ *                       properties:
+ *                         loaded:
+ *                           type: boolean
+ *                         count:
+ *                           type: number
+ *                 version:
+ *                   type: string
+ *       503:
+ *         description: Degraded — some sources unavailable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       500:
+ *         description: Internal error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/health', async (_req: Request, res: Response) => {
   try {
     const odCount = await openData.getStopCount();

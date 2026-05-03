@@ -64,6 +64,99 @@ function cacheKey(stopId: number, lineLabel?: string): string {
 // ─── GET /api/v1/stops/:stop/arrivals ───────────────────────────────
 // Params: ?line=X&refresh=true
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/arrivals:
+ *   get:
+ *     tags: [Arrivals]
+ *     summary: Llegadas en tiempo real con geolocalización de próximas paradas
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *       - in: query
+ *         name: line
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filtrar por línea
+ *       - in: query
+ *         name: refresh
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *         description: Forzar refresh ignorando caché
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 stop:
+ *                   type: object
+ *                   properties:
+ *                     stopId:
+ *                       type: number
+ *                     name:
+ *                       type: string
+ *                     lat:
+ *                       type: number
+ *                     lng:
+ *                       type: number
+ *                 updated:
+ *                   type: string
+ *                   format: date-time
+ *                 arrivals:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       line:
+ *                         type: string
+ *                       destination:
+ *                         type: string
+ *                       color:
+ *                         type: string
+ *                       minutes:
+ *                         type: number
+ *                         nullable: true
+ *                       next:
+ *                         type: number
+ *                         nullable: true
+ *                       active:
+ *                         type: boolean
+ *                       stops:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             stopId:
+ *                               type: number
+ *                               nullable: true
+ *                             name:
+ *                               type: string
+ *                             lat:
+ *                               type: number
+ *                             lng:
+ *                               type: number
+ *                 all_lines:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       400:
+ *         description: Invalid parameters
+ *       404:
+ *         description: Stop not found
+ *       503:
+ *         description: Legacy API unavailable
+ *       500:
+ *         description: Internal error
+ */
 router.get('/stops/:stop/arrivals', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);
@@ -163,6 +256,55 @@ router.get('/stops/:stop/arrivals', async (req: Request, res: Response) => {
 
 // ─── GET /api/v1/stops/:stop/arrivals/:line ─────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/arrivals/{line}:
+ *   get:
+ *     tags: [Arrivals]
+ *     summary: Llegadas filtradas por línea específica
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la línea
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 line:
+ *                   type: string
+ *                 destination:
+ *                   type: string
+ *                   nullable: true
+ *                 color:
+ *                   type: string
+ *                 minutes:
+ *                   type: number
+ *                   nullable: true
+ *                 next:
+ *                   type: number
+ *                   nullable: true
+ *                 active:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid parameters
+ *       503:
+ *         description: Legacy API unavailable
+ *       500:
+ *         description: Internal error
+ */
 router.get('/stops/:stop/arrivals/:line', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);
@@ -219,6 +361,47 @@ router.get('/stops/:stop/arrivals/:line', async (req: Request, res: Response) =>
 
 // ─── GET /api/v1/stops/:stop/next ───────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/next:
+ *   get:
+ *     tags: [Arrivals]
+ *     summary: Solo el próximo autobús (respuesta mínima)
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *     responses:
+ *       200:
+ *         description: OK — null si no hay buses
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               nullable: true
+ *               properties:
+ *                 line:
+ *                   type: string
+ *                   nullable: true
+ *                 destination:
+ *                   type: string
+ *                   nullable: true
+ *                 minutes:
+ *                   type: number
+ *                   nullable: true
+ *                 color:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Invalid parameters
+ *       503:
+ *         description: Legacy API unavailable
+ *       500:
+ *         description: Internal error
+ */
 router.get('/stops/:stop/next', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);
@@ -265,6 +448,55 @@ router.get('/stops/:stop/next', async (req: Request, res: Response) => {
 
 // ─── GET /api/v1/stops/:stop/next/:line ─────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/stops/{stop}/next/{line}:
+ *   get:
+ *     tags: [Arrivals]
+ *     summary: Próximo autobús de una línea concreta
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la línea
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 line:
+ *                   type: string
+ *                 destination:
+ *                   type: string
+ *                   nullable: true
+ *                 minutes:
+ *                   type: number
+ *                   nullable: true
+ *                 next:
+ *                   type: number
+ *                   nullable: true
+ *                 color:
+ *                   type: string
+ *                 active:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid parameters
+ *       503:
+ *         description: Legacy API unavailable
+ *       500:
+ *         description: Internal error
+ */
 router.get('/stops/:stop/next/:line', async (req: Request, res: Response) => {
   try {
   const stopId = parseInt(req.params.stop as string, 10);
@@ -316,6 +548,57 @@ router.get('/stops/:stop/next/:line', async (req: Request, res: Response) => {
 
 // ─── GET /api/v1/lines/:line/next-at/:stop ──────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/lines/{line}/next-at/{stop}:
+ *   get:
+ *     tags: [Arrivals]
+ *     summary: "Búsqueda inversa: ¿cuándo pasa esta línea por esta parada?"
+ *     parameters:
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la línea
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID numérico de la parada
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 line:
+ *                   type: string
+ *                 stop:
+ *                   type: number
+ *                 stop_name:
+ *                   type: string
+ *                 destination:
+ *                   type: string
+ *                   nullable: true
+ *                 minutes:
+ *                   type: number
+ *                   nullable: true
+ *                 next:
+ *                   type: number
+ *                   nullable: true
+ *                 active:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid parameters
+ *       503:
+ *         description: Legacy API unavailable
+ *       500:
+ *         description: Internal error
+ */
 router.get('/lines/:line/next-at/:stop', async (req: Request, res: Response) => {
   try {
   const lineLabel = req.params.line as string;

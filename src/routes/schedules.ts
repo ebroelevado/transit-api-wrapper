@@ -62,6 +62,62 @@ function calcFrequency(times: string[]): number | null {
 
 // ─── GET /api/v1/schedule/lines/:line ─────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/schedule/lines/{line}:
+ *   get:
+ *     tags: [Schedules]
+ *     summary: Horarios programados de una línea
+ *     parameters:
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: day
+ *         schema:
+ *           type: string
+ *           default: L
+ *         description: "L/S/F"
+ *       - in: query
+ *         name: direction
+ *         schema:
+ *           type: string
+ *           default: "1"
+ *         description: "1/2"
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 line:
+ *                   type: string
+ *                 direction:
+ *                   type: string
+ *                 day:
+ *                   type: string
+ *                 day_name:
+ *                   type: string
+ *                 times:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 total:
+ *                   type: integer
+ *                 first:
+ *                   type: string
+ *                 last:
+ *                   type: string
+ *                 frequency_min:
+ *                   type: integer
+ *                   nullable: true
+ *                 source:
+ *                   type: string
+ */
 router.get('/lines/:line', (req: Request, res: Response) => {
   const line = req.params.line as string;
   const day = (req.query.day as string) || getDayType();
@@ -125,6 +181,36 @@ router.get('/lines/:line', (req: Request, res: Response) => {
 
 // ─── GET /api/v1/schedule/lines/:line/next ────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/schedule/lines/{line}/next:
+ *   get:
+ *     tags: [Schedules]
+ *     summary: Próximo horario programado desde ahora
+ *     parameters:
+ *       - in: path
+ *         name: line
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: day
+ *         schema:
+ *           type: string
+ *           default: L
+ *       - in: query
+ *         name: direction
+ *         schema:
+ *           type: string
+ *           default: "1"
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/lines/:line/next', (req: Request, res: Response) => {
   const line = req.params.line as string;
   const day = (req.query.day as string) || getDayType();
@@ -208,6 +294,26 @@ router.get('/lines/:line/next', (req: Request, res: Response) => {
 
 // ─── GET /api/v1/schedule/stops/:stop ─────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/schedule/stops/{stop}:
+ *   get:
+ *     tags: [Schedules]
+ *     summary: Horarios de todas las líneas en esta parada
+ *     parameters:
+ *       - in: path
+ *         name: stop
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/stops/:stop', (req: Request, res: Response) => {
   const stopId = parseInt(req.params.stop as string, 10);
 

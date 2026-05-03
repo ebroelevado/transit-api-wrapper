@@ -63,6 +63,20 @@ function cardToFare(card: RawCard): Fare {
 
 // ─── GET /api/v1/fares ────────────────────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/fares:
+ *   get:
+ *     tags: [Fares]
+ *     summary: Listar las 7 tarjetas y abonos TUS
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/', (_req: Request, res: Response) => {
   const cards = loadCards();
   const fares = cards.map(cardToFare);
@@ -72,6 +86,20 @@ router.get('/', (_req: Request, res: Response) => {
 // ─── GET /api/v1/fares/compare ────────────────────────────────────────
 // Must be defined BEFORE /:id to avoid "compare" being treated as an id
 
+/**
+ * @swagger
+ * /api/v1/fares/compare:
+ *   get:
+ *     tags: [Fares]
+ *     summary: Comparativa de todas las tarifas
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/compare', (_req: Request, res: Response) => {
   const cards = loadCards();
   const fares = cards.map(cardToFare);
@@ -81,6 +109,31 @@ router.get('/compare', (_req: Request, res: Response) => {
 // ─── GET /api/v1/fares/calculator ─────────────────────────────────────
 // Also before /:id
 
+/**
+ * @swagger
+ * /api/v1/fares/calculator:
+ *   get:
+ *     tags: [Fares]
+ *     summary: "Calculadora: opción más barata según uso mensual y edad"
+ *     parameters:
+ *       - in: query
+ *         name: trips
+ *         schema:
+ *           type: integer
+ *           default: 40
+ *       - in: query
+ *         name: age
+ *         schema:
+ *           type: integer
+ *           default: 16
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/calculator', (req: Request, res: Response) => {
   const trips = parseInt(req.query.trips as string, 10) || 0;
   const age = parseInt(req.query.age as string, 10) || 0;
@@ -146,6 +199,32 @@ router.get('/calculator', (req: Request, res: Response) => {
 
 // ─── GET /api/v1/fares/:id ────────────────────────────────────────────
 
+/**
+ * @swagger
+ * /api/v1/fares/{id}:
+ *   get:
+ *     tags: [Fares]
+ *     summary: Detalle de una tarjeta/abono
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       404:
+ *         description: fare_not_found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
 router.get('/:id', (req: Request, res: Response) => {
   const cards = loadCards();
   const card = cards.find((c) => c.id === req.params.id);
