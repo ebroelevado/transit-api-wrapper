@@ -2,7 +2,7 @@
 # Dokploy → Select "Nixpacks" as build method
 
 [phases.setup]
-nixPkgs = ["nodejs", "npm"]
+nixPkgs = ["nodejs"]
 
 [phases.install]
 cmds = ["npm ci"]
