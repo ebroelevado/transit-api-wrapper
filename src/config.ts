@@ -5,7 +5,8 @@ export const LEGACY_API_BASE = 'https://transitserver.miguelripoll23.deno.net';
 export const INS4G_URL = 'http://158.179.210.240:7130';
 export const INS4G_KEY = 'ik_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6';
 
-export const PORT = parseInt(process.env.PORT || '3001', 10);
+export const PORT = parseInt(process.env.PORT || '3000', 10);
+export const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 export const VERSION = '3.0.0';
 export const DISCOVERY_STOP_ID = 41;
 export const NEARBY_RADIUS = 300;
