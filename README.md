@@ -14,15 +14,19 @@
 
 Una API REST diseñada con enfoque **DX-First** (Developer Experience). Envuelve múltiples fuentes de datos inconexas (Open Data estático, la API Legacy en tiempo real y configuraciones en memoria) ofreciendo una capa única con **37 endpoints** fuertemente tipados, documentados y consistentes.
 
+> **🎉 Actualización 2026**: Hemos refactorizado completamente la API para usar *Strict Types*, un motor de rutas basado en Grafos (Dijkstra), y caché en **Redis L2**. El proyecto cuenta con **100% de tests pasando** (178/178 suites en Vitest).
+
 ---
 
 ## ✨ Características Principales
 
 - 📚 **Documentación Premium**: Potenciada por **Scalar** y OpenAPI 3.1. Ofrece cliente REST integrado, dark mode nativo y snippets de código.
-- 🛡️ **Validación Estricta**: Cada endpoint utiliza esquemas **Zod** para validar parámetros, purgar datos basura y devolver errores descriptivos.
-- 🚦 **Rate Limiting Global**: Protección nativa contra abusos (500 reqs/5min) con límites ajustados para el planificador de viajes intermodal.
-- ⚡ **Rendimiento Inigualable**: Caché agresiva en memoria para topología estática y balanceo dinámico hacia la API Legacy para datos en tiempo real.
+- 🛡️ **Validación Estricta**: Cada endpoint utiliza esquemas **Zod** para validar parámetros, purgar datos basura y devolver errores descriptivos. Typescript estricto sin casts (`as any`).
+- 🚦 **Rate Limiting Global**: Protección nativa contra abusos (500 reqs/5min) con límites ajustados para endpoints pesados.
+- ⚡ **Rendimiento y Tolerancia a Fallos**: Caché L2 en **Redis** para persistir el catálogo de líneas y topología de red. Si Redis cae, se usan cachés en memoria local (Cold Starts).
 - 🗺️ **Formatos Estándar**: Soporte nativo para GeoJSON en rutas y polilíneas para integrar mapas sin fricción en el frontend.
+- 🧭 **Algoritmo de Rutas Eficiente**: Algoritmo Dijkstra interno ejecutado sobre un grafo precalculado para ofrecer transbordos y viajes directos óptimos.
+- 🧪 **100% Tested**: Suite integral con 178 tests (Unitarios + Integración E2E mediante Supertest) asegurando calidad de grado de producción.
 
 ---
 
@@ -36,6 +40,7 @@ graph TD
 
     subgraph Fuentes de Datos
         Services -->|Real-time| Legacy[Legacy API TUS]
+        Services -->|L2 Cache| Redis[(Redis DB)]
         Services -->|Estático| OpenData[Open Data Santander]
         Services -->|Configuración| Local[Archivos Locales JSON]
     end
@@ -158,7 +163,7 @@ npm install
 # Iniciar en modo desarrollo con Hot Reload (tsx)
 npm run dev
 
-# Ejecutar el Test Suite (Vitest)
+# Ejecutar el Test Suite Completo (Vitest E2E & Units)
 npm test
 
 # Compilar para producción (TypeScript a dist/)

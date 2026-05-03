@@ -1,4 +1,7 @@
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export const OPEN_DATA_URL = 'https://datos.santander.es/api/rest/datasets/paradas_bus.json';
 export const LEGACY_API_BASE = 'https://transitserver.miguelripoll23.deno.net';
@@ -14,7 +17,7 @@ export const BATCH_CONCURRENCY = 3;
 export const MAX_BATCH_SIZE = 20;
 
 // ── Redis ──────────────────────────────────────────────────────────
-export const REDIS_URL = process.env.REDIS_URL || 'redis://default:x2pvyIpNGMScCqfWdWyO@158.179.210.240:6384';
+export const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // ── Upstream throttle ──────────────────────────────────────────────
 export const MAX_UPSTREAM_CONCURRENT = 3;
