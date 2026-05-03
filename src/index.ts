@@ -84,8 +84,8 @@ app.use(errorHandler);
 
 // ── Startup ─────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    logger.info({ port: PORT }, `[server] Listening on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    logger.info({ port: PORT }, `[server] Listening on http://0.0.0.0:${PORT}`);
   });
 }
 
