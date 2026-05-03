@@ -12,6 +12,48 @@ const router = Router();
 const nearbyCache = new Map<number, { data: { stopId: number; name: string; meters: number }[]; ts: number }>();
 const NEARBY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// ─── GET /api/v1/stops/search ───────────────────────────────────────
+// MUST be registered before /stops/:stop to avoid "search" being captured as :stop
+
+router.get('/stops/search', async (req: Request, res: Response) => {
+  return res.redirect(307, `/api/v1/stops?q=${encodeURIComponent((req.query.q as string) || '')}`);
+});
+
+// ─── GET /api/v1/stops/nearby ───────────────────────────────────────
+// MUST be registered before /stops/:stop to avoid "nearby" being captured as :stop
+
+router.get('/stops/nearby', async (req: Request, res: Response) => {
+  try {
+    const lat = parseFloat(req.query.lat as string);
+    const lng = parseFloat(req.query.lng as string);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'invalid_params', message: 'lat and lng query parameters are required and must be numbers' });
+    }
+    const radius = parseFloat(req.query.radius as string) || NEARBY_RADIUS;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const allStops = await openData.getStops();
+    const results = allStops
+      .map(s => ({
+        stopId: s.stopId,
+        name: s.name,
+        lat: s.lat,
+        lng: s.lng,
+        meters: Math.round(haversine(lat, lng, s.lat, s.lng)),
+      }))
+      .filter(s => s.meters <= radius)
+      .sort((a, b) => a.meters - b.meters)
+      .slice(0, limit);
+
+    res.json({ results, total: results.length, center: { lat, lng }, radius, source: 'open_data' });
+  } catch (err: any) {
+    console.error('[stops/nearby] Error:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
+    }
+  }
+});
+
 /**
  * @swagger
  * /api/v1/stops:

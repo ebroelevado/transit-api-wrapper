@@ -6,6 +6,30 @@ import { getColor, resolveStop } from '../utils/helpers';
 
 const router = Router();
 
+// ─── GET /api/v1/arrivals/:line?stop= ──────────────────────────────
+
+router.get('/arrivals/:line', async (req: Request, res: Response) => {
+  try {
+    const lineId = req.params.line as string;
+    const stopId = parseInt(req.query.stop as string);
+    if (isNaN(stopId)) {
+      return res.status(400).json({ error: 'invalid_params', message: 'Query parameter ?stop= is required and must be a number' });
+    }
+    // Delegate to the existing stop-specific arrivals handler
+    const arrivals = await legacyApi.getArrivals(stopId);
+    if (!Array.isArray(arrivals)) {
+      return res.status(502).json({ error: 'upstream_unavailable', message: 'Legacy API returned non-array response', source: 'legacy_api', timestamp: new Date().toISOString() });
+    }
+    const filtered = arrivals.filter((a: any) => a.lineId === lineId);
+    res.json({ stop: stopId, line: lineId, arrivals: filtered, total: filtered.length, timestamp: new Date().toISOString() });
+  } catch (err: any) {
+    console.error('[arrivals/:line] Error:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
+    }
+  }
+});
+
 // ─── In-memory arrivals cache with periodic cleanup ──────────────────
 
 const arrivalsCache = new Map<string, { data: any; ts: number }>();

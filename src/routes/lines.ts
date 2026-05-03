@@ -286,6 +286,30 @@ router.get('/lines/:line', async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  */
+// ─── GET /api/v1/lines/:line/stops ──────────────────────────────────
+
+router.get('/lines/:line/stops', async (req: Request, res: Response) => {
+  try {
+    await lineIndex.buildLineIndex();
+    const line = lineIndex.getLine(req.params.line as string);
+    if (!line) {
+      return res.status(404).json({ error: 'line_not_found', message: `La línea '${req.params.line}' no existe` });
+    }
+    const allStops: number[] = [];
+    for (const [, dData] of Object.entries(line.directions)) {
+      for (const sid of dData.stops) {
+        if (!allStops.includes(sid)) allStops.push(sid);
+      }
+    }
+    res.json({ line: line.id, color: line.color, stops: allStops, total: allStops.length });
+  } catch (err: any) {
+    console.error('[lines/stops] Error:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'internal_error', message: err?.message || 'Unknown error', source: 'internal', timestamp: new Date().toISOString() });
+    }
+  }
+});
+
 router.get('/lines/:line/route', async (req: Request, res: Response) => {
   try {
     await lineIndex.buildLineIndex();

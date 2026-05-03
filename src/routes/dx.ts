@@ -6,16 +6,6 @@ const router = Router();
 // ─── OPTIONS /api/v1 ────────────────────────────────────────────────
 // Discovery of top-level endpoints
 
-/**
- * @swagger
- * /api/v1:
- *   options:
- *     tags: [DX]
- *     summary: Descubrimiento de endpoints disponibles (Link headers)
- *     responses:
- *       204:
- *         description: No Content
- */
 router.options('/api/v1', (_req: Request, res: Response) => {
   res.setHeader('Allow', 'GET, POST, HEAD, OPTIONS');
   res.setHeader('Link', [
@@ -35,25 +25,34 @@ router.options('/api/v1', (_req: Request, res: Response) => {
   res.status(204).end();
 });
 
+// ─── GET /dx/info ──────────────────────────────────────────────────
+
+router.get('/dx/info', (_req: Request, res: Response) => {
+  res.json({
+    api: 'transit-api-wrapper',
+    version: VERSION,
+    endpoints: {
+      health: '/api/v1/health',
+      discover: '/api/v1/discover',
+      stops: '/api/v1/stops',
+      lines: '/api/v1/lines',
+      trip: '/api/v1/trip',
+      fares: '/api/v1/fares',
+      now: '/api/v1/now',
+      schedule: '/api/v1/schedule',
+      compare: '/api/v1/compare',
+      batch: '/api/v1/batch',
+      map: '/api/v1/map',
+      alerts: '/api/v1/alerts',
+      docs: '/api/v1/docs',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ─── OPTIONS /api/v1/stops/:stop ────────────────────────────────────
 // Available actions for a specific stop
 
-/**
- * @swagger
- * /api/v1/stops/{stop}:
- *   options:
- *     tags: [DX]
- *     summary: Acciones disponibles sobre esta parada
- *     parameters:
- *       - in: path
- *         name: stop
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       204:
- *         description: No Content
- */
 router.options('/api/v1/stops/:stop', (_req: Request, res: Response) => {
   try {
     const stop = _req.params.stop as string;

@@ -4,8 +4,21 @@ import * as lineIndex from '../sources/lineIndex';
 const router = Router();
 
 // ─── POST /api/v1/compare/lines ─────────────────────────────────────
+// Also works as GET /api/v1/compare/lines?lines=1,2
 
 router.post('/lines', async (req: Request, res: Response) => {
+  req.body = req.body || {};
+  handleCompareLines(req, res);
+});
+
+router.get('/lines', async (req: Request, res: Response) => {
+  const linesParam = (req.query.lines as string) || '';
+  const lines = linesParam.split(',').map(s => s.trim()).filter(Boolean);
+  req.body = { lines };
+  handleCompareLines(req, res);
+});
+
+async function handleCompareLines(req: Request, res: Response) {
   try {
     const { lines } = req.body as { lines?: string[] };
 
@@ -92,6 +105,6 @@ router.post('/lines', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
 
 export default router;
