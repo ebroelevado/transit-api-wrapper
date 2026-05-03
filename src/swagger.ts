@@ -13,7 +13,7 @@ function buildOptions(): swaggerJsDoc.Options {
     definition: {
       openapi: '3.1.0',
       info: {
-        title: 'Transit API Wrapper — TUS Santander',
+        title: 'SANTANDER TUS API',
         version: VERSION,
         description: `
 Una API REST unificada, moderna y rápida para interactuar con los servicios del Transporte Urbano de Santander (TUS).

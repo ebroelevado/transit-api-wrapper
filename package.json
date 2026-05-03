@@ -1,5 +1,5 @@
 {
-  "name": "transit-api-wrapper",
+  "name": "santander-tus-api",
   "version": "3.0.0",
   "description": "🚀 Modern, high-performance API Wrapper for TUS Santander. Features fuzzy search, real-time arrivals, GeoJSON maps, and OpenAPI 3.1 documentation.",
   "main": "dist/index.js",

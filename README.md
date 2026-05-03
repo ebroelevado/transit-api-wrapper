@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🚌 Transit API Wrapper — TUS Santander</h1>
+  <h1>🚌 SANTANDER TUS API</h1>
   <p><strong>La API más moderna, rápida y unificada para el Transporte Urbano de Santander.</strong></p>
   <p>
     <img src="https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js" alt="Node.js" />
