@@ -9,12 +9,14 @@ paths:
         Calcula las mejores opciones de transporte entre dos paradas de la red de transporte utilizando un algoritmo de grafos interno (Dijkstra ponderado).
         
         ### Algoritmo de Enrutamiento
-        El motor de búsqueda evalúa:
-        1. **Conexiones directas** (sin transbordos) con prioridad máxima.
-        2. **Transbordos optimizados** entre líneas que comparten paradas.
-        3. **Tiempo de viaje** en bus basado en pesos y frecuencias estimadas.
+        El motor de búsqueda utiliza un algoritmo **Dijkstra de alto rendimiento** optimizado con **MinHeap (Priority Queue)** para garantizar tiempos de respuesta mínimos.
         
-        Devuelve un array de itinerarios sugeridos ordenados por tiempo total de trayecto, con un límite máximo de las 10 mejores opciones.
+        Evaluación dinámica:
+        1. **Time-Dependent Routing**: El cálculo de transbordos no es estático; se consultan los **horarios reales (schedules)** para determinar el tiempo de espera exacto según la próxima salida programada.
+        2. **Walking Connections**: El sistema descubre automáticamente enlaces a pie entre paradas cercanas (<300m) para optimizar transbordos complejos.
+        3. **Penalizaciones Realistas**: Se incluyen tiempos de transferencia física y penalizaciones por cambio de línea para priorizar rutas cómodas.
+        
+        Devuelve itinerarios detallados con geometrías GeoJSON listas para ser representadas en mapas.
       parameters:
         - in: query
           name: from
