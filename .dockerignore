@@ -10,4 +10,4 @@ Dockerfile
 .dockerignore
 .agents
 scratch
-data/
+data/tus.gtfs.sqlite
