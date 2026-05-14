@@ -37,12 +37,12 @@ export function initLineMap() {
 
   // Fallback: populate from lineIndex
   try {
-    const catalog = lineIndex.getLineCatalog();
+    const catalog = lineIndex.getLines();
     if (catalog && catalog.length > 0) {
       labelToIdMap.clear();
       idToLabelMap.clear();
       for (const line of catalog) {
-        const label = line.id; // e.g. "1", "LC", "N1"
+        const label = line.id;
         const id = Number(line.schedule_id ?? line.id) || 0;
         if (id > 0) {
           labelToIdMap.set(label, id);
