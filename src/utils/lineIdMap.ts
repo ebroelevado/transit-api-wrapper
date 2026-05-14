@@ -59,7 +59,22 @@ export function initLineMap() {
     logger.error({ err }, '[lineIdMap] Failed to initialize from lineIndex fallback');
   }
 
-  logger.warn('[lineIdMap] No line data available from any source');
+  // Last resort: hardcoded mappings (same as Android LineIDMapper)
+  const knownLines: Record<string, number> = {
+    '1': 1, '2': 2, '3': 3, '4': 4, '11': 11, '12': 12, '13': 13,
+    '14': 14, '15': 15, '16': 16, '17': 17, '18': 18,
+    'LC': 100, 'N1': 101, 'N2': 102, 'N3': 103,
+    'E1': 41, 'E2': 42, 'E3': 43, 'E4': 44, 'E7': 47, 'E31': 31,
+    '5C1': 51, '5C2': 52, '6C1': 61, '6C2': 62,
+    '7C1': 71, '7C2': 72, '24C1': 241, '24C2': 242,
+    'SE': 40, '99': 99
+  };
+  for (const [label, id] of Object.entries(knownLines)) {
+    labelToIdMap.set(label, id);
+    idToLabelMap.set(id, label);
+  }
+  isInitialized = true;
+  logger.warn({ count: Object.keys(knownLines).length }, '[lineIdMap] Using hardcoded line mappings as last resort');
 }
 
 /**
