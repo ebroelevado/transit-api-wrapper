@@ -51,6 +51,13 @@ export function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 
+/** Extract "HH:MM" from a GTFS StopTimes.time value (ISO datetime format). */
+export function timeFromGtfsDateTime(gtfsTime: string): string {
+  const match = gtfsTime.match(/(\d{2}:\d{2})/);
+  if (!match) return gtfsTime.substring(0, 5);
+  return match[1];
+}
+
 /** Get current time in "HH:MM" format using Europe/Madrid timezone. */
 export function currentTimeStr(): string {
   const now = new Date();

@@ -1,6 +1,6 @@
 import { dayTypeName } from '../utils/lineMapping';
 import { getLinesForStop } from '../sources/lineIndex';
-import { timeToMinutes, currentTimeStr } from '../utils/helpers';
+import { timeToMinutes, currentTimeStr, timeFromGtfsDateTime } from '../utils/helpers';
 import * as gtfsDb from '../sources/gtfsDb';
 import * as lineIdMap from '../utils/lineIdMap';
 import logger from '../utils/logger';
@@ -45,7 +45,7 @@ export async function fetchLineSchedules(lineLabel: string, direction: string, d
   // Get unique times for the ORIGIN (stop_sequence = 1)
   const originTimes = stopTimes
     .filter(st => String(st.direction_id) === gtfsDir && st.stop_sequence === 1)
-    .map(st => st.departure_time.substring(0, 5));
+    .map(st => timeFromGtfsDateTime(st.departure_time));
 
   if (originTimes.length === 0) {
     return { error: 'not_found', date, day };
@@ -78,7 +78,7 @@ export async function fetchNextService(lineLabel: string, direction: string, day
 
   const originTimes = stopTimes
     .filter(st => String(st.direction_id) === gtfsDir && st.stop_sequence === 1)
-    .map(st => st.departure_time.substring(0, 5));
+    .map(st => timeFromGtfsDateTime(st.departure_time));
 
   if (originTimes.length === 0) {
     return { error: 'not_found', date };
@@ -136,7 +136,7 @@ export async function fetchStopSchedules(stopId: number, day: string) {
       const stopTimes = gtfsDb.queryStopTimesForDate(date, lineId, stopId);
       const times = stopTimes
         .filter(st => String(st.direction_id) === gtfsDir)
-        .map(st => st.departure_time.substring(0, 5));
+        .map(st => timeFromGtfsDateTime(st.departure_time));
 
       if (times.length === 0) continue;
 
@@ -167,7 +167,7 @@ export async function getNextDepartureFromOrigin(lineLabel: string, direction: s
   const stopTimes = gtfsDb.queryStopTimesForDate(date, lineId);
   const originTimes = stopTimes
     .filter(st => String(st.direction_id) === gtfsDir && st.stop_sequence === 1)
-    .map(st => st.departure_time.substring(0, 5));
+    .map(st => timeFromGtfsDateTime(st.departure_time));
 
   if (originTimes.length === 0) return null;
 
