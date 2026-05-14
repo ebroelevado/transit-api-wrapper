@@ -123,9 +123,9 @@ export function openDb(): Database.Database {
   }
 
   dbInstance = new Database(dbPath, { readonly: true });
-  // Performance optimizations for SQLite
-  dbInstance.pragma('journal_mode = WAL');
-  dbInstance.pragma('synchronous = OFF');
+  // Performance optimizations for SQLite (best-effort, may fail on readonly filesystems)
+  try { dbInstance.pragma('journal_mode = WAL'); } catch (_) { /* readonly filesystem */ }
+  try { dbInstance.pragma('synchronous = OFF'); } catch (_) { /* readonly filesystem */ }
   
   return dbInstance;
 }
