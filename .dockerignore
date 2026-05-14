@@ -10,3 +10,4 @@ Dockerfile
 .dockerignore
 .agents
 scratch
+data/
