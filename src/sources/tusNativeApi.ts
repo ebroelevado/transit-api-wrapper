@@ -70,8 +70,8 @@ export async function getEstimations(
       // Some upstream endpoints return empty body for 200 — handle gracefully
       const text = await res.text();
       if (!text || text.trim().length === 0) {
-        logger.warn({ stopId }, '[tusNative] Empty response body from Native API');
-        return unavailable();
+        logger.warn({ stopId }, '[tusNative] Empty response body — treating as no active buses');
+        return [] as TusNativeResponse;
       }
       const json = JSON.parse(text) as TusNativeResponse;
       return json;
