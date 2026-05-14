@@ -210,12 +210,12 @@ async function performLineIndexBuild(): Promise<void> {
         // In our schema, Trips has a destination field. 
         // We'll just take the destination from the first trip we find for each direction.
         const db = gtfsDb.openDb();
-        const tripDirs = db.prepare('SELECT direction, destination FROM Trips WHERE lineId = ? GROUP BY direction').all(lineId) as { direction: string, destination: string }[];
+        const tripDirs = db.prepare('SELECT direction, destination FROM Trips WHERE lineId = ? GROUP BY direction').all(lineId) as { direction: number, destination: string }[];
         
         for (const td of tripDirs) {
-          const dirId = td.direction === '0' ? '1' : '2'; // Map '0'/'1' to '1'/'2'
+          const dirId = String(td.direction) === '0' ? '1' : '2'; // Map '0'/'1' to '1'/'2'
           const stops = stopTimes
-            .filter(st => String(st.direction_id) === td.direction)
+            .filter(st => String(st.direction_id) === String(td.direction))
             // Dedup stops in case multiple trips are returned
             .map(st => st.stop_id);
           
@@ -223,7 +223,7 @@ async function performLineIndexBuild(): Promise<void> {
           const uniqueStops: number[] = [];
           const seen = new Set<number>();
           // Find first tripId for this direction to get a clean sequence
-          const firstTrip = stopTimes.find(st => String(st.direction_id) === td.direction)?.trip_id;
+          const firstTrip = stopTimes.find(st => String(st.direction_id) === String(td.direction))?.trip_id;
           if (firstTrip) {
             const tripStops = stopTimes.filter(st => st.trip_id === firstTrip).map(st => st.stop_id);
             directions[dirId] = { destination: td.destination, stops: tripStops };
